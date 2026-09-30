@@ -7,7 +7,9 @@ import { exportCsv, exportXlsx, stamp, type ExportRow } from '../utils/export';
 import { fmtNum, fmtPct, fmtSigned, NA } from '../utils/format';
 import { monthKeyOf, monthLabel, toMonthKey } from '../utils/parse';
 import { useVisibleColumns } from '../components/WorkTable';
-import { Card, EmptyState, KpiCard } from '../components/ui';
+import { Card, EmptyState, KpiCard, Segmented } from '../components/ui';
+import { ReportBuilder } from '../components/report/ReportBuilder';
+import { FilterBar } from '../components/FilterBar';
 import { Icon } from '../components/Icon';
 
 interface MonthRow {
@@ -162,7 +164,7 @@ function MonthlyPerformance() {
   );
 }
 
-export default function ReportsPage() {
+function DataExports() {
   const { dataset, searched, filtered, data, kpi } = useApp();
   const [visible] = useVisibleColumns(dataset);
   const [scope, setScope] = useState<'visible' | 'all'>('visible');
@@ -195,6 +197,7 @@ export default function ReportsPage() {
 
   return (
     <>
+      <FilterBar showRecordsLink={false} />
       <Card title="Export filtered data" subtitle={`${fmtNum(searched.length)} Work Sheet rows match the current filters and search. Exports never include columns excluded at sync time.`}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
           <label className="field" style={{ minWidth: 220 }}>
@@ -245,6 +248,52 @@ export default function ReportsPage() {
           ))}
         </div>
       </Card>
+    </>
+  );
+}
+
+type ReportTab = 'individual' | 'governance' | 'exports';
+
+export default function ReportsPage() {
+  const [tab, setTab] = useState<ReportTab>(() => {
+    try {
+      return (localStorage.getItem('cartup.reportTab') as ReportTab) || 'individual';
+    } catch {
+      return 'individual';
+    }
+  });
+  const choose = (t: ReportTab) => {
+    setTab(t);
+    try {
+      localStorage.setItem('cartup.reportTab', t);
+    } catch {
+      /* ignore */
+    }
+  };
+  return (
+    <>
+      <div>
+        <Segmented
+          label="Report"
+          value={tab}
+          onChange={choose}
+          options={[
+            { id: 'individual', label: 'Individual Summary' },
+            { id: 'governance', label: 'Product Governance' },
+            { id: 'exports', label: 'Data exports' },
+          ]}
+        />
+      </div>
+      {tab === 'individual' && <ReportBuilder />}
+      {tab === 'governance' && (
+        <Card title="Product Governance — coming soon">
+          <EmptyState
+            title="Not added yet"
+            message="The Product Governance report (QC Rejected Inactive → Live, Weight Update, Image URL Change, Ad-Hoc tasks, Brand Authorization…) will be added in a later update."
+          />
+        </Card>
+      )}
+      {tab === 'exports' && <DataExports />}
     </>
   );
 }

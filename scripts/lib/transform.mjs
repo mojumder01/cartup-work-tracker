@@ -75,21 +75,24 @@ export function normalizeHeaders(row, width) {
  * - date serials in date columns become ISO strings
  * - completely empty rows are dropped
  */
-export function transformWorkSheet(grid, { expectedColumns = [], excludeColumns = [], dateColumns = [] } = {}) {
+export function transformWorkSheet(grid, { expectedColumns = [], excludeColumns = [], dateColumns = [], includeColumns = null, label = 'Work Sheet' } = {}) {
   const warnings = [];
   const headerIndex = findHeaderRow(grid, expectedColumns);
   if (headerIndex < 0) {
-    return { table: { columns: [], rows: [] }, warnings: ['The Work Sheet tab is empty.'], headerRow: null };
+    return { table: { columns: [], rows: [] }, warnings: [`The ${label} tab is empty.`], headerRow: null };
   }
   const body = grid.slice(headerIndex + 1);
   const width = Math.max(grid[headerIndex].length, ...body.map((r) => r.length), 0);
   const headers = normalizeHeaders(grid[headerIndex], width);
 
   const excluded = new Set(excludeColumns.map((c) => c.trim().toLowerCase()));
+  // When includeColumns is given, only those columns are published (smaller JSON, less exposure).
+  const included = includeColumns ? new Set(includeColumns.map((c) => c.trim().toLowerCase())) : null;
   const dateSet = new Set(dateColumns.map((c) => c.trim().toLowerCase()));
   const keep = [];
   headers.forEach((h, i) => {
     if (excluded.has(h.toLowerCase())) return;
+    if (included && !included.has(h.toLowerCase())) return;
     // Drop auto-named columns that contain no data at all.
     if (h.startsWith('Column ') && isBlank(grid[headerIndex][i]) && body.every((r) => isBlank(r[i]))) return;
     const isDate = dateSet.has(h.toLowerCase()) || /date|timestamp/i.test(h);
@@ -113,8 +116,8 @@ export function transformWorkSheet(grid, { expectedColumns = [], excludeColumns 
   const missing = expectedColumns.filter(
     (c) => !present.has(c.toLowerCase()) && !excluded.has(c.toLowerCase()),
   );
-  if (missing.length) warnings.push(`Work Sheet is missing expected columns: ${missing.join(', ')}.`);
-  if (rows.length === 0) warnings.push('The Work Sheet tab has a header row but no data rows.');
+  if (missing.length) warnings.push(`${label} is missing expected columns: ${missing.join(', ')}.`);
+  if (rows.length === 0) warnings.push(`The ${label} tab has a header row but no data rows.`);
 
   return {
     table: { columns: keep.map((k) => k.name), rows },

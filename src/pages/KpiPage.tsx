@@ -6,7 +6,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { fmtPct, NA } from '../utils/format';
 import type { KpiReport } from '../types';
 
-function ReportView({ report, view }: { report: KpiReport; view: 'progress' | 'table' }) {
+function ReportView({ report, view, hideLeft }: { report: KpiReport; view: 'progress' | 'table'; hideLeft: boolean }) {
   if (!report.sections.length) {
     return (
       <Card title={report.sheet}>
@@ -20,7 +20,7 @@ function ReportView({ report, view }: { report: KpiReport; view: 'progress' | 't
   return (
     <>
       {report.sections.map((s) => (
-        <ErrorBoundary key={s.title}>{view === 'progress' ? <KpiTeamCard section={s} /> : <KpiRawTable section={s} />}</ErrorBoundary>
+        <ErrorBoundary key={s.title}>{view === 'progress' ? <KpiTeamCard section={s} hideLeft={hideLeft} /> : <KpiRawTable section={s} />}</ErrorBoundary>
       ))}
     </>
   );
@@ -29,6 +29,7 @@ function ReportView({ report, view }: { report: KpiReport; view: 'progress' | 't
 export default function KpiPage() {
   const { kpi, target, data } = useApp();
   const [view, setView] = useState<'progress' | 'table'>('progress');
+  const [hideLeft, setHideLeft] = useState(true);
   if (!kpi) {
     return (
       <Card title="KPI & Target">
@@ -42,6 +43,11 @@ export default function KpiPage() {
         title="KPI & Target"
         subtitle={`Values calculated in Google Sheets (“${kpi.sheet}”) · ${kpiPeriodText(kpi)} · Achievement % = Actual ÷ Target × 100 · Gap = Actual − Target`}
         actions={
+          <>
+          <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
+            <input type="checkbox" checked={hideLeft} onChange={(e) => setHideLeft(e.target.checked)} />
+            Hide people who left
+          </label>
           <Segmented
             label="View"
             value={view}
@@ -51,6 +57,7 @@ export default function KpiPage() {
               { id: 'table', label: 'Sheet table' },
             ]}
           />
+          </>
         }
       >
         <div className="grid grid-kpi">
@@ -60,7 +67,7 @@ export default function KpiPage() {
           ))}
         </div>
       </Card>
-      <ReportView report={kpi} view={view} />
+      <ReportView report={kpi} view={view} hideLeft={hideLeft} />
       {data.source.targetSheet &&
         (target ? (
           <>
@@ -69,7 +76,7 @@ export default function KpiPage() {
                 Sections below are read from the separate Target tab.
               </p>
             </Card>
-            <ReportView report={target} view={view} />
+            <ReportView report={target} view={view} hideLeft={hideLeft} />
           </>
         ) : (
           <Card title="Target">

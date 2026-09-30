@@ -4,6 +4,8 @@ import { buildDataset } from '../utils/dataset';
 import { parseKpiTab } from '../utils/kpiParser';
 import { applyFilters, emptyFilters, type Drill, type Filters } from '../utils/filters';
 import { useDebounce } from './useDebounce';
+import { useLocalStorage } from './useLocalStorage';
+import { buildRoster, type Person, type RosterOverride, type RosterOverrides } from '../utils/roster';
 
 interface AppState {
   data: DashboardData;
@@ -23,6 +25,12 @@ interface AppState {
   person: string;
   setPerson: (name: string) => void;
   openPerson: (name: string) => void;
+  /** Team roster (defaults + Team Members tab + this browser's changes). */
+  roster: Person[];
+  rosterOverrides: RosterOverrides;
+  /** Save a roster change in this browser; `null` removes the local change. */
+  setRosterOverride: (name: string, patch: RosterOverride | null) => void;
+  clearRosterOverrides: () => void;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -34,6 +42,18 @@ export function AppProvider({ data, navigate, children }: { data: DashboardData;
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [person, setPerson] = useState('');
   const search = useDebounce(filters.search, 180);
+  const [rosterOverrides, setRosterOverrides] = useLocalStorage<RosterOverrides>('cartup.roster', {});
+  const roster = useMemo(() => buildRoster(dataset, kpi, data.team, rosterOverrides), [dataset, kpi, data.team, rosterOverrides]);
+  const setRosterOverride = useCallback(
+    (name: string, patch: RosterOverride | null) => {
+      const next = { ...rosterOverrides };
+      if (patch === null) delete next[name];
+      else next[name] = { ...next[name], ...patch };
+      setRosterOverrides(next);
+    },
+    [rosterOverrides, setRosterOverrides],
+  );
+  const clearRosterOverrides = useCallback(() => setRosterOverrides({}), [setRosterOverrides]);
 
   const filtered = useMemo(() => applyFilters(dataset.records, filters, { ignoreSearch: true }), [
     dataset,
@@ -67,6 +87,7 @@ export function AppProvider({ data, navigate, children }: { data: DashboardData;
   const value: AppState = {
     data, dataset, kpi, target, filters, setFilters, setDim, setDrill, resetFilters,
     filtered, searched, navigate, person, setPerson, openPerson,
+    roster, rosterOverrides, setRosterOverride, clearRosterOverrides,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

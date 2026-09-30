@@ -52,10 +52,14 @@ async function main() {
   const kpiTab = findTab(info.tabs, config.tabs.kpi);
   if (!kpiTab) warnings.push(`Worksheet "${config.tabs.kpi}" was not found — KPI & Target section will show N/A.`);
   const targetTab = (config.tabs.target ?? []).map((n) => findTab(info.tabs, n)).find(Boolean) ?? null;
+  const sellerQcTab = config.tabs.sellerQc ? findTab(info.tabs, config.tabs.sellerQc) ?? null : null;
+  if (config.tabs.sellerQc && !sellerQcTab) warnings.push(`Worksheet "${config.tabs.sellerQc}" was not found — seller QC in reports will show N/A.`);
+  const teamTab = config.tabs.team ? findTab(info.tabs, config.tabs.team) ?? null : null;
 
   const reportTabs = [kpiTab, targetTab].filter(Boolean);
   // Two batched requests in total: numbers/serials, then display strings for report tabs.
-  const raw = await batchGetTabs(spreadsheetId, token, [workTab, ...reportTabs], 'UNFORMATTED_VALUE');
+  const tableTabs = [sellerQcTab, teamTab].filter(Boolean);
+  const raw = await batchGetTabs(spreadsheetId, token, [workTab, ...reportTabs, ...tableTabs], 'UNFORMATTED_VALUE');
   const formatted = await batchGetTabs(spreadsheetId, token, reportTabs, 'FORMATTED_VALUE');
 
   const work = transformWorkSheet(raw[workTab], {
@@ -72,6 +76,14 @@ async function main() {
   const kpi = report(kpiTab);
   if (kpi && kpi.values.length === 0) warnings.push(`Worksheet "${kpiTab}" is empty.`);
 
+  /** Optional flat tabs, published with only the configured columns. */
+  const table = (tab, columns) => {
+    if (!tab) return null;
+    const t = transformWorkSheet(raw[tab], { expectedColumns: columns, includeColumns: columns, dateColumns: config.dateColumns, label: tab });
+    warnings.push(...t.warnings);
+    return { sheet: tab, ...t.table };
+  };
+
   const data = {
     schemaVersion: 1,
     updatedAt: new Date().toISOString(),
@@ -81,12 +93,16 @@ async function main() {
       workSheet: workTab,
       kpiSheet: kpiTab ?? null,
       targetSheet: targetTab,
+      sellerQcSheet: sellerQcTab,
+      teamSheet: teamTab,
       workHeaderRow: work.headerRow,
       excludedColumns: config.excludeColumns,
     },
     work: { sheet: workTab, ...work.table },
     kpi,
     target: report(targetTab),
+    sellerQc: table(sellerQcTab, config.sellerQcColumns),
+    team: table(teamTab, config.teamColumns),
     warnings,
   };
 
