@@ -15,6 +15,12 @@
   "dateColumns": ["Timestamp", "QC approved date", "Upload date", "Image Delivered Date"],
   "sellerQcColumns": ["QC By", "QC Status", "Number of SKUs", "Approved QC Count", "Rejected QC Count", "QC Date"],
   "teamColumns": ["Name", "Full Name", "Team", "Status", "Left Date"],
+  "$comment_governance": "Governance team tracker (separate spreadsheet). adhoc = regular REVAMP / Ad-Hoc task log. projects & progress tabs are created and written by the Apps Script in apps-script/Code.gs. appsScriptUrl = the Web app URL from that script's deployment (not a secret, but it allows writes).",
+  "governance": {
+    "spreadsheetId": "1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4",
+    "tabs": { "adhoc": "Main", "projects": "Projects", "progress": "Project Progress" },
+    "appsScriptUrl": ""
+  },
   "$comment_expectedWorkColumns": "Used to locate the header row and to report missing columns. Missing columns are reported as warnings, never invented.",
   "expectedWorkColumns": ["JOB ID", "Timestamp", "Task Type", "Shop Name", "Number of SKU", "Google drive link", "Vertical Head", "KAM", "Phone Number (KAM)", "Mail (KAM)", "L1 Category", "Note", "Email Address", "Seller Code", "File Type", "Seller Pick/Drop Status", "Seller Status (After QC)", "Status", "Uploaded by", "Image Source", "Visual editor", "Image Status", "Comments", "Image count", "Edited (By Hand)", "Uploaded SKU Count", "Rejected SKU Count", "QC By", "QC Status", "Approved QC Count", "Rejected QC Count", "QC approved date", "Upload date", "Image Delivered Date", "Weeks", "Month", "Vertical", "Upload Month", "QC Approved Month", "Image Delivered Month", "Visual", "Upload", "QC", "Edited (By AI)"]
 }

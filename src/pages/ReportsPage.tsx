@@ -9,6 +9,7 @@ import { monthKeyOf, monthLabel, toMonthKey } from '../utils/parse';
 import { useVisibleColumns } from '../components/WorkTable';
 import { Card, EmptyState, KpiCard, Segmented } from '../components/ui';
 import { ReportBuilder } from '../components/report/ReportBuilder';
+import { GovernanceReport } from '../components/report/GovernanceReport';
 import { FilterBar } from '../components/FilterBar';
 import { Icon } from '../components/Icon';
 
@@ -285,14 +286,7 @@ export default function ReportsPage() {
         />
       </div>
       {tab === 'individual' && <ReportBuilder />}
-      {tab === 'governance' && (
-        <Card title="Product Governance — coming soon">
-          <EmptyState
-            title="Not added yet"
-            message="The Product Governance report (QC Rejected Inactive → Live, Weight Update, Image URL Change, Ad-Hoc tasks, Brand Authorization…) will be added in a later update."
-          />
-        </Card>
-      )}
+      {tab === 'governance' && <GovernanceReport />}
       {tab === 'exports' && <DataExports />}
     </>
   );

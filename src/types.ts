@@ -31,7 +31,21 @@ export interface DashboardData {
   sellerQc?: FlatTable | null;
   /** Optional "Team Members" roster tab. */
   team?: FlatTable | null;
+  /** Governance team tracker (separate spreadsheet). */
+  governance?: GovernanceData | null;
   warnings: string[];
+}
+
+export interface GovernanceData {
+  spreadsheetTitle: string;
+  tabs: string[];
+  /** Regular REVAMP / Ad-Hoc task log ("Main" tab). */
+  adhoc: FlatTable | null;
+  /** Written by the Apps Script (apps-script/Code.gs). */
+  projects: FlatTable | null;
+  progress: FlatTable | null;
+  /** Apps Script Web app URL used for creating/assigning projects; null = read-only. */
+  writeUrl: string | null;
 }
 
 export interface FlatTable {
@@ -100,4 +114,4 @@ export interface KpiReport {
   headlineParts: { section: string; metric: string; pct: number }[];
 }
 
-export type Route = 'dashboard' | 'work' | 'kpi' | 'team' | 'upload' | 'qc' | 'visual' | 'reports' | 'people' | 'settings';
+export type Route = 'dashboard' | 'work' | 'kpi' | 'team' | 'upload' | 'qc' | 'visual' | 'reports' | 'people' | 'settings' | 'gov-tasks' | 'gov-projects';

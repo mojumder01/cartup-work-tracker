@@ -17,11 +17,14 @@ import KpiPage from './pages/KpiPage';
 import TeamPage from './pages/TeamPage';
 import ReportsPage from './pages/ReportsPage';
 import PeoplePage from './pages/PeoplePage';
+import GovTasksPage from './pages/GovTasksPage';
+import GovProjectsPage from './pages/GovProjectsPage';
+import { GovernanceProvider } from './hooks/useGovernance';
 import SettingsPage, { type Theme } from './pages/SettingsPage';
 import { QcPage, UploadPage, VisualPage } from './pages/SectionPages';
 
 /** Pages that do not depend on the Work Sheet filters. */
-const NO_FILTER_ROUTES: Route[] = ['kpi', 'settings', 'people', 'reports'];
+const NO_FILTER_ROUTES: Route[] = ['kpi', 'settings', 'people', 'reports', 'gov-tasks', 'gov-projects'];
 
 function ConnectedHeader(props: { updatedAt: string; checkedAt: number | null; loading: boolean; onRefresh: () => void; route: Route }) {
   const { filters, setFilters, navigate } = useApp();
@@ -55,6 +58,10 @@ function Page({ route, prefs }: { route: Route; prefs: { refreshMinutes: number;
       return <ReportsPage />;
     case 'people':
       return <PeoplePage />;
+    case 'gov-tasks':
+      return <GovTasksPage />;
+    case 'gov-projects':
+      return <GovProjectsPage />;
     case 'settings':
       return <SettingsPage {...prefs} />;
     default:
@@ -115,6 +122,7 @@ export default function App() {
 
   return (
     <AppProvider data={data} navigate={navigate}>
+      <GovernanceProvider>
       <Shell route={route} navigate={navigate} sheetTitle={data.source.spreadsheetTitle}>
         <ConnectedHeader updatedAt={data.updatedAt} checkedAt={checkedAt} loading={loading} onRefresh={refresh} route={route} />
         <main className="content">
@@ -138,6 +146,7 @@ export default function App() {
           </ErrorBoundary>
         </main>
       </Shell>
+      </GovernanceProvider>
     </AppProvider>
   );
 }

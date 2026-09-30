@@ -39,7 +39,7 @@ const ROLE: Record<string, string> = { Production: C.uploadedBy, Visual: C.visua
 const ROLE_DATE: Record<string, string> = { Production: C.uploadDate, Visual: C.imageDate, QC: C.qcDate };
 
 /** Opens the slide alone in a print frame so the browser's "Save as PDF" gives a clean 16:9 page. */
-function printSlide(el: HTMLElement, title: string) {
+export function printSlide(el: HTMLElement, title: string) {
   const frame = document.createElement('iframe');
   frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
   document.body.appendChild(frame);
@@ -63,7 +63,7 @@ function printSlide(el: HTMLElement, title: string) {
   setTimeout(go, 400);
 }
 
-function useFitScale(ref: React.RefObject<HTMLDivElement | null>, width = 1280) {
+export function useFitScale(ref: React.RefObject<HTMLDivElement | null>, width = 1280) {
   const [scale, setScale] = useState(1);
   useLayoutEffect(() => {
     const el = ref.current;

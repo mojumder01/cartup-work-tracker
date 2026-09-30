@@ -150,6 +150,35 @@ How each number is calculated (checked against the Week 37 vs Week 38 template):
 
 The **Product Governance** report is planned for a later update.
 
+## Governance team tracker
+
+Two kinds of Governance work, both read from the **Governance Wrork Tracker** spreadsheet (`config/data-source.json → governance`):
+
+| Page | Source | What it shows |
+|---|---|---|
+| **Governance → Ad-Hoc Tasks** | `Main` tab (Date, Task Type, Project Name, Shop Name, Product Count, Shop Count, Image Count, Source, Wroking By, Status, Note) | Tasks / products / shops / images by task type and person, weekly or monthly trend, filterable log, CSV |
+| **Governance → REVAMP Projects** | `Projects` + `Project Progress` tabs (created by the Apps Script) | Project cards with progress, assign POC and team, log daily progress (Reviewed / Found / Updated), pending fixes, overdue flags |
+| **Reports → Product Governance** | both | "Product Governance — Week 37 vs Week 38" slide (weekly / monthly / yearly), PDF / Excel |
+
+Header names are matched flexibly (`src/config/governance.config.ts`), so the "Wroking By" typo or a later rename keeps working.
+
+### Switch on project assigning (one-time, ~5 minutes)
+
+GitHub Pages cannot write to Google Sheets, so a small Google Apps Script inside the Governance sheet does the writing:
+
+1. Open the Governance spreadsheet → **Extensions → Apps Script**.
+2. Delete what is in `Code.gs`, paste the contents of [`apps-script/Code.gs`](apps-script/Code.gs), click **Save**.
+3. Choose the function **`setup`** in the toolbar → **Run** → allow the permissions. This creates the `Projects` and `Project Progress` tabs; the `Main` tab is never modified.
+4. **Deploy → New deployment** → gear icon → **Web app** → *Execute as:* **Me**, *Who has access:* **Anyone** → **Deploy** → copy the **Web app URL** (`https://script.google.com/macros/s/…/exec`).
+5. In GitHub: **Settings → Secrets and variables → Actions → Variables → New repository variable** named `GOVERNANCE_APPS_SCRIPT_URL` with that URL.
+6. **Actions → Sync Google Sheet & Deploy → Run workflow**.
+
+After that, REVAMP Projects shows **+ New project**, **Edit**, a status picker and **Log progress**. Changes are written to the sheet immediately and the page reads the tabs live through the same script, so there is no 5-minute wait.
+
+If you later change `Code.gs`, use **Deploy → Manage deployments → Edit → Version: New version** so the URL stays the same.
+
+> Access: as chosen, anyone who has the dashboard link can create or edit projects and progress. The script only accepts the fields listed in `Code.gs`, validates numbers and dates, and neutralises formulas. It cannot read or change any other tab.
+
 ## Team Members (who left the job)
 
 **Team Members** lists everyone found in the Work Sheet. For each person you can set the full name printed on reports, their team, and **Left the job** plus their last working day. A person who left is still included in reports for periods before that date. An "inactive 45d+" badge flags people with no recent work.

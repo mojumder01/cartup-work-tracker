@@ -3,7 +3,7 @@ import type { Route } from '../types';
 import { Icon, type IconName } from './Icon';
 import { buildLabel, builtAtLabel } from '../utils/buildInfo';
 
-export const NAV: { id: Route; label: string; icon: IconName; group: 'Overview' | 'Performance' | 'Data' }[] = [
+export const NAV: { id: Route; label: string; icon: IconName; group: 'Overview' | 'Performance' | 'Governance' | 'Data' }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', group: 'Overview' },
   { id: 'work', label: 'Work Sheet', icon: 'table', group: 'Overview' },
   { id: 'kpi', label: 'KPI & Target', icon: 'target', group: 'Overview' },
@@ -11,6 +11,8 @@ export const NAV: { id: Route; label: string; icon: IconName; group: 'Overview' 
   { id: 'upload', label: 'Upload', icon: 'upload', group: 'Performance' },
   { id: 'qc', label: 'QC', icon: 'qc', group: 'Performance' },
   { id: 'visual', label: 'Visual / Image', icon: 'image', group: 'Performance' },
+  { id: 'gov-tasks', label: 'Ad-Hoc Tasks', icon: 'clipboard', group: 'Governance' },
+  { id: 'gov-projects', label: 'REVAMP Projects', icon: 'folder', group: 'Governance' },
   { id: 'reports', label: 'Reports', icon: 'report', group: 'Data' },
   { id: 'people', label: 'Team Members', icon: 'userCheck', group: 'Data' },
   { id: 'settings', label: 'Settings', icon: 'settings', group: 'Data' },

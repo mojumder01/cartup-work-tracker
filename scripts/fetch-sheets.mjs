@@ -5,6 +5,7 @@
 // only from environment variables populated by GitHub secrets:
 //   GOOGLE_SERVICE_ACCOUNT_JSON  service-account key (raw JSON or base64)
 //   GOOGLE_SHEET_ID              optional; overrides config/data-source.json
+//   GOVERNANCE_SHEET_ID          optional; overrides config governance.spreadsheetId
 // For local runs only, GOOGLE_SERVICE_ACCOUNT_FILE may point to a key file kept
 // outside git (e.g. credentials/service_account.json, which is .gitignored).
 //
@@ -15,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { DataSourceError, getAccessToken, parseServiceAccount } from './lib/google-auth.mjs';
 import { batchGetTabs, getSpreadsheetInfo } from './lib/sheets-api.mjs';
 import { transformReportTab, transformWorkSheet } from './lib/transform.mjs';
+import { fetchGovernance } from './lib/governance.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT = resolve(root, process.env.DATA_OUTPUT ?? 'public/data/data.json');
@@ -84,6 +86,8 @@ async function main() {
     return { sheet: tab, ...t.table };
   };
 
+  const governance = await fetchGovernance(token, config, config.dateColumns, warnings);
+
   const data = {
     schemaVersion: 1,
     updatedAt: new Date().toISOString(),
@@ -103,6 +107,7 @@ async function main() {
     target: report(targetTab),
     sellerQc: table(sellerQcTab, config.sellerQcColumns),
     team: table(teamTab, config.teamColumns),
+    governance,
     warnings,
   };
 
