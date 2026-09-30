@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Route } from '../types';
 import { Icon, type IconName } from './Icon';
+import { buildLabel, builtAtLabel } from '../utils/buildInfo';
 
 export const NAV: { id: Route; label: string; icon: IconName; group: 'Overview' | 'Performance' | 'Data' }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', group: 'Overview' },
@@ -59,6 +60,9 @@ export function Sidebar({ route, onNavigate, sheetTitle }: { route: Route; onNav
       <div className="sidebar-foot">
         <div>Source: Google Sheets</div>
         {sheetTitle && <div title={sheetTitle} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sheetTitle}</div>}
+        <div className="build-tag" title={`Deployed ${builtAtLabel()}`}>
+          {buildLabel()}
+        </div>
       </div>
     </aside>
   );

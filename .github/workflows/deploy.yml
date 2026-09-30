@@ -60,6 +60,11 @@ jobs:
       - name: Build dashboard
         run: npm run build
 
+      - name: Build info
+        run: |
+          echo "### Deploying v$(node -p "require('./package.json').version") · build #${{ github.run_number }} · ${GITHUB_SHA::7}" >> "$GITHUB_STEP_SUMMARY"
+          echo "The same label is shown at the bottom of the dashboard sidebar and on Settings." >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v4

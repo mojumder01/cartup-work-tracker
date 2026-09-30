@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, createVerify } from 'node:crypto';
 import { serialToIso, findHeaderRow, normalizeHeaders, transformWorkSheet, tidyGrid } from './lib/transform.mjs';
-import { buildAssertion, parseServiceAccount, DataSourceError } from './lib/google-auth.mjs';
+import { buildAssertion, parseServiceAccount, DataSourceError, normalizeKeyText } from './lib/google-auth.mjs';
 import { quoteTab } from './lib/sheets-api.mjs';
 import { extractSheetId } from './fetch-sheets.mjs';
 
@@ -87,4 +87,12 @@ test('transformWorkSheet includeColumns keeps only listed columns', () => {
   });
   assert.deepEqual(table.columns, ['QC By', 'Number of SKUs', 'QC Date']);
   assert.deepEqual(table.rows, [['Jerry', 7, '2026-09-18']]);
+});
+
+test('service-account key pasted without braces is accepted', () => {
+  const inner = '"type": "service_account",\n  "client_email": "a@b.iam.gserviceaccount.com",\n  "private_key": "k"';
+  assert.equal(JSON.parse(normalizeKeyText(inner)).type, 'service_account');
+  assert.equal(JSON.parse(normalizeKeyText(`{${inner}`)).type, 'service_account');
+  assert.equal(JSON.parse(normalizeKeyText(`${inner}\n}`)).type, 'service_account');
+  assert.equal(JSON.parse(normalizeKeyText(Buffer.from(`{${inner}}`).toString('base64'))).type, 'service_account');
 });
