@@ -1,0 +1,218 @@
+# Cartup Content — Work Performance Dashboard
+
+An internal dashboard for the Cartup Content Department. It reads the live **Google Sheet** (Work Sheet, KPI & Target, and an optional Target tab) and publishes a fast, static dashboard on **GitHub Pages**.
+
+```
+Google Sheet ──► Google Sheets API ──► GitHub Action (every 5 min) ──► data.json ──► GitHub Pages ──► Browsers
+                     (service account,                   (built into the site;
+                      GitHub secret only)                 never committed to git)
+```
+
+- **No credentials in the browser.** Only the GitHub Action talks to Google, using a key stored as a GitHub secret. The website only reads the generated `data/data.json`.
+- **Low Google API quota use.** Each sync makes 1 token request, 1 metadata request and 2 batched value reads, no matter how many rows or viewers there are.
+- **No invented numbers.** If a column is missing or a value can't be calculated, the dashboard shows **N/A**.
+
+---
+
+## Features
+
+| Area | What you get |
+|---|---|
+| Dashboard | 8 KPI cards (Total Work, Completed, Pending, Total SKU, Uploaded SKU, QC Approved, QC Rejected, KPI Achievement %), Target vs Achievement, Work Status, Task Type, Monthly Trend, Upload/QC/Visual summaries, AI vs Manual, Team Performance, and the filtered work table |
+| Work Sheet | Paginated table (25–200 rows/page), sorting, column picker, horizontal scroll, row detail drawer, CSV and Excel export |
+| KPI & Target | Every team table from the KPI & Target tab with Target, Actual, Achievement % (Actual ÷ Target × 100), Gap (Actual − Target) and progress bars; a "Sheet table" view shows every column |
+| Team Performance | Pick any person to see their jobs, SKU, uploads, QC, image work, AI/manual editing and their KPI rows, whatever roles they appear in |
+| Upload / QC / Visual | Daily/weekly/monthly trends, per-person bars, status breakdowns, SLA labels, median turnaround |
+| Reports | Export filtered data (CSV/Excel, visible or all columns), Monthly Performance (current, previous or any month), summary CSVs |
+| Settings | Auto-refresh interval, theme, data-source details, data-health warnings, mapping overview |
+| Interaction | Global filters (date preset/custom, month, vertical, task type, status, employee, uploaded by, QC by, visual editor, shop name, L1 category), debounced global search, click-to-filter charts, click-to-drill KPI cards, Reset |
+| Quality | TypeScript, error boundaries, loading/empty/error states, responsive (sidebar → icon rail → bottom nav), light and dark themes |
+
+---
+
+## Setup
+
+### STEP 1 — Create the GitHub repository
+Create a repository on GitHub (e.g. `cartup-work-tracker`). **Public** repositories get unlimited free Actions minutes; see [Costs & schedule](#costs--schedule) for private ones.
+
+### STEP 2 — Add the project files
+Push this project to the repository's default branch (`main`).
+
+```bash
+git clone https://github.com/<you>/cartup-work-tracker.git
+cd cartup-work-tracker
+# copy the project files in, then:
+git add . && git commit -m "Cartup Content dashboard" && git push origin main
+```
+
+### STEP 3 — Create GitHub Secrets
+In the repository go to **Settings → Secrets and variables → Actions → New repository secret** and add:
+
+| Secret | Value |
+|---|---|
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | The **entire contents** of the service-account key file (`{ "type": "service_account", ... }`). Base64 of the file also works. |
+| `GOOGLE_SHEET_ID` | `1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc` (the ID in the sheet URL; a full URL also works). Optional: `config/data-source.json` has the same default. |
+
+To create a key for the existing `keyword-checker` service account (or a new, dashboard-only account, which is recommended): Google Cloud Console → project **cartup-keyword-search** → IAM & Admin → Service Accounts → the account → **Keys → Add key → Create new key → JSON**. Paste the downloaded file's contents into the secret, then **delete the file from your computer**. Never commit it.
+
+### STEP 4 — Share the Google Sheet with the service account
+Open the Google Sheet → **Share** → add the service account's email (`…@cartup-keyword-search.iam.gserviceaccount.com`) as **Viewer**. The sheet owner (or any editor) can do this, and ownership does not need to change. Viewer is enough because the dashboard only reads. Give **Editor** only to automation that writes to the sheet.
+
+### STEP 5 — Enable the Google Sheets API
+Google Cloud Console → APIs & Services → Library → **Google Sheets API** → Enable. It is already enabled for `cartup-keyword-search`.
+
+### STEP 6 — Run the GitHub Action manually
+Repository → **Actions** → **Sync Google Sheet & Deploy** → **Run workflow**.
+
+### STEP 7 — Verify the generated data
+Open the run and expand **Fetch Google Sheet data** and **Validate generated data**. You should see the spreadsheet title, the tabs found, the number of work rows, and any warnings (e.g. missing columns). If the step fails, the error says why (see [Troubleshooting](#troubleshooting)).
+
+### STEP 8 — Enable GitHub Pages
+Repository → **Settings → Pages → Build and deployment → Source: GitHub Actions**. Re-run the workflow if the first deploy ran before this was set.
+
+### STEP 9 — Open the dashboard
+`https://<your-github-username>.github.io/<repository-name>/`. The URL is also shown on the **deploy** job of each run.
+
+From then on: **update the Google Sheet → within ~5–10 minutes the Action syncs → refresh the dashboard (it also re-checks automatically every 5 minutes).**
+
+---
+
+## Configuration
+
+Values you may need to change live in two files. Neither holds secrets.
+
+### `config/data-source.json` — what the Action reads
+| Key | Purpose |
+|---|---|
+| `spreadsheetId` | Default sheet ID (the `GOOGLE_SHEET_ID` secret overrides it) |
+| `tabs.work` / `tabs.kpi` | Tab names: `Work Sheet`, `KPI & Target` |
+| `tabs.target` | Optional tab names to look for, e.g. `["Target"]`. If none exists, the dashboard works without it. |
+| `excludeColumns` | Columns **never published**. Defaults to `Seller Login ID` and `Seller Login Password`. |
+| `dateColumns` | Columns converted from sheet date serials to dates |
+| `expectedWorkColumns` | Used to find the header row and to warn about missing columns |
+
+### `src/config/dashboard.config.ts` — how columns become metrics
+- `columns`: every Work Sheet column the dashboard uses (defaults to the exact reference names, e.g. `Uploaded SKU Count`, `QC By`, `Edited (By AI)`).
+- `statusGroups`: which `Status` values count as **Completed** (`Done`) and **Pending** (`Pending`, `Running`).
+- `qcDoneValues` (`QC Done`) and `imageDeliveredValues` (`Delivered`).
+- `recordRequiresAnyOf`: a row counts as work only if it has a Timestamp, Task Type or Shop Name. The sheet pre-fills JOB IDs on empty rows.
+- `filterColumns`, `searchColumns`, `defaultTableColumns`, `personColumns`.
+- `kpi`: how the KPI & Target tab is read (see below).
+- `autoRefreshMinutes` (5) and `staleAfterMinutes` (a warning appears if the last sync is older than this).
+
+After editing, commit to `main`. The workflow rebuilds automatically.
+
+### How the KPI & Target tab is interpreted
+The tab is a report layout, not a flat table: `A1` = `TODAY()`, `B1` = the KPI month, then blocks titled **Production Team**, **Visaul Team** and **QC Team**, each with its own header row. The dashboard:
+
+1. finds each header row that contains the employee column (`Emplyee Name`, spelled as in the sheet),
+2. uses the single-cell row above it as the team title,
+3. pairs target and actual columns using `kpi.metricPairs`:
+
+| Metric | Target column | Actual column |
+|---|---|---|
+| Sellers (month) | `MonthlyTarget (Sellers)` / `(Seller)` | `Achieved (Sellers)` |
+| SKUs (month) | `No of SKUs` | `Total Achieved (SKUs)`, else `Achieved (SKUs)` |
+| Images (month) | `ImageTarget` | `Achieved (Image)` |
+| Sellers today | `DailyTarget (Sellers)` | `Today Achieved (Sellers)` |
+
+4. computes Achievement % = Actual ÷ Target × 100 (N/A when Target is 0 or blank) and Gap = Actual − Target.
+
+The **KPI Achievement %** headline card is the average of the team-level monthly achievements; hover it to see each part. Actual values are the ones Google Sheets computes with its own formulas, so the KPI section always reflects the month set in `B1`. If the layout changes, adjust the regexes in `kpi.metricPairs`. Unrecognised layouts show N/A plus a hint, never guessed numbers.
+
+---
+
+## Security
+
+- The service-account key exists **only** in the `GOOGLE_SERVICE_ACCOUNT_JSON` GitHub secret. It is never written to disk in CI, never logged, and never bundled into the site.
+- There are **no `VITE_*` variables**. Anything with that prefix ends up in the public JavaScript.
+- `.gitignore` blocks `.env*`, `credentials/`, `secrets/`, `service_account.json`, `*service-account*.json`, generated data and `*.xlsx`, using specific rules rather than a blanket `*.json`.
+- `data.json` is produced at build time and deployed as part of the site. It is **not committed**, so sheet data never enters git history.
+- **Seller Login ID / Seller Login Password are removed before publishing** (`excludeColumns`).
+- ⚠️ **GitHub Pages sites are publicly reachable** (unless your organisation has GitHub Enterprise Cloud with private Pages). Anyone with the URL can load `data/data.json`. The page carries `noindex`, but that is not access control. Consider also excluding personal contact columns (`Phone Number (KAM)`, `Mail (KAM)`, `Email Address`). If the data must be private, use Enterprise private Pages or put the site behind an access proxy such as Cloudflare Access.
+- Use a dedicated service account with **Viewer** access to just this sheet, and rotate its key if it is ever exposed.
+- CSV exports neutralise spreadsheet formula injection.
+
+---
+
+## Costs & schedule
+
+- The schedule is the `cron` line in `.github/workflows/deploy.yml`. The default is `*/5 * * * *` (every 5 minutes, GitHub's minimum). GitHub may start scheduled runs a few minutes late during busy periods.
+- Each run takes about 1–2 minutes. **Public repos: free.** **Private repos:** a 5-minute schedule uses roughly 9,000–17,000 Actions minutes a month, more than the free 2,000. Use `*/30 * * * *` (≈2,000–3,000) or `0 * * * *`, or a paid plan.
+- GitHub disables schedules in repositories with no activity for 60 days. Re-enable them from the Actions tab.
+- Manual refresh at any time: Actions → **Run workflow**.
+
+---
+
+## Local development
+
+```bash
+npm install
+npm test               # unit tests for the data scripts
+npm run dev            # http://localhost:5173 (shows "No data has been published yet" until data exists)
+
+# Optional: fetch real data locally (key file kept OUTSIDE git)
+mkdir -p credentials && cp /path/to/key.json credentials/service_account.json
+cp .env.example .env
+npm run fetch-data:local   # writes public/data/data.json (git-ignored)
+npm run build && npm run preview
+```
+
+---
+
+## Troubleshooting
+
+| Message (Action log or dashboard) | Fix |
+|---|---|
+| `AUTH: GOOGLE_SERVICE_ACCOUNT_JSON is not set` | Add the secret (STEP 3). |
+| `AUTH: Google rejected the service-account credentials` | The key was deleted/disabled or pasted incompletely. Create a new key. |
+| `PERMISSION: Permission denied (HTTP 403)` | Share the sheet with the service-account email (STEP 4) and enable the Sheets API (STEP 5). |
+| `NOT_FOUND: Spreadsheet … was not found` | Check `GOOGLE_SHEET_ID`. |
+| `WORKSHEET_NOT_FOUND` | The `Work Sheet` tab was renamed. Update `tabs.work` in `config/data-source.json`. |
+| `QUOTA` / `UNAVAILABLE` | Temporary. The script retries with backoff, and the last good dashboard stays online. |
+| Dashboard: "No data has been published yet" | Run the Action (STEP 6) and enable Pages (STEP 8). |
+| Dashboard: "Unable to load KPI data. Please check Google Sheet access." | The KPI & Target tab is missing or unreadable. The rest of the dashboard still works. |
+| Dashboard: "data was last synced … ago" | Scheduled runs are failing or disabled. Check the Actions tab. |
+| A metric shows **N/A** | Its column is missing or renamed. Settings → Data health lists what's missing. |
+
+When a sync fails, nothing is deployed, so viewers keep seeing the last good data with its real "Last Updated" time.
+
+---
+
+## Project structure
+
+```
+.github/workflows/deploy.yml   Sync Google Sheet → build → deploy to GitHub Pages
+config/data-source.json        Tabs, excluded columns, date columns (no secrets)
+scripts/
+  fetch-sheets.mjs             Entry point run by the Action (zero npm dependencies)
+  lib/google-auth.mjs          Service-account JWT → access token (Node crypto)
+  lib/sheets-api.mjs           Batched Sheets API reads, retries, friendly errors
+  lib/transform.mjs            Header detection, date conversion, column exclusion
+  transform.test.mjs           `npm test`
+public/data/                   data.json is generated here at build time (git-ignored)
+src/
+  config/dashboard.config.ts   Column mapping, status groups, KPI pairs, defaults
+  services/dataService.ts      Loads data.json with friendly errors
+  hooks/                       Data loading + auto refresh, app state, routing, storage
+  utils/                       Parsing, aggregation, filters, KPI parser, export
+  charts/                      Bar list, trend chart, split bar, palette
+  components/                  Layout, filter bar, work table, cards, states
+  components/sections/         Dashboard sections (KPI, work, upload, QC, visual, team)
+  pages/                       Dashboard, Work Sheet, KPI & Target, Team, Upload, QC,
+                               Visual/Image, Reports, Settings
+```
+
+### `data.json` shape
+```jsonc
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-09-30T05:30:00.000Z",
+  "source": { "spreadsheetTitle": "…", "tabs": ["…"], "workSheet": "Work Sheet", "kpiSheet": "KPI & Target", "targetSheet": null, "excludedColumns": ["…"] },
+  "work":   { "sheet": "Work Sheet", "columns": ["JOB ID", "Timestamp", "…"], "rows": [["CCWT0001", "2024-08-31T13:22:18", "…"]] },
+  "kpi":    { "sheet": "KPI & Target", "values": [[…]], "formatted": [[…]] },
+  "target": null,
+  "warnings": []
+}
+```
+Column names are exactly the sheet's headers. Rows are arrays (compact for large sheets), and GitHub Pages serves the file gzip-compressed (≈1 MB for ~10,000 rows).

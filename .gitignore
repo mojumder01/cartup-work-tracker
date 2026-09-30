@@ -1,0 +1,29 @@
+# Dependencies & build output
+node_modules/
+dist/
+*.tsbuildinfo
+
+# ---- Secrets: never commit credentials ----
+.env
+.env.local
+.env.*.local
+credentials/
+secrets/
+service_account.json
+*service-account*.json
+*service_account*.json
+*-credentials.json
+client_secret*.json
+
+# Generated at build time by the GitHub Action (live business data — not stored in git)
+public/data/*.json
+
+# Reference spreadsheets are not the database and must not be committed
+*.xlsx
+*.xls
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.log

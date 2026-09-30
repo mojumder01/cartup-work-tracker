@@ -1,0 +1,30 @@
+{
+  "$comment": "Data-source settings used by scripts/fetch-sheets.mjs (runs inside GitHub Actions). Nothing here is secret. The service-account key must ONLY live in the GOOGLE_SERVICE_ACCOUNT_JSON GitHub secret.",
+
+  "spreadsheetId": "1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc",
+
+  "tabs": {
+    "work": "Work Sheet",
+    "kpi": "KPI & Target",
+    "target": ["Target"]
+  },
+
+  "$comment_excludeColumns": "Columns that are NEVER written to the published data.json. GitHub Pages sites are public, so seller credentials must never be published. Add personal data columns (e.g. \"Phone Number (KAM)\", \"Mail (KAM)\", \"Email Address\") here if the site should not expose them.",
+  "excludeColumns": ["Seller Login ID", "Seller Login Password"],
+
+  "$comment_dateColumns": "Columns whose Google Sheets date serial numbers are converted to ISO dates. Any header containing 'date' or 'timestamp' is also treated as a date column automatically.",
+  "dateColumns": ["Timestamp", "QC approved date", "Upload date", "Image Delivered Date"],
+
+  "$comment_expectedWorkColumns": "Used to locate the header row and to report missing columns. Missing columns are reported as warnings, never invented.",
+  "expectedWorkColumns": [
+    "JOB ID", "Timestamp", "Task Type", "Shop Name", "Number of SKU", "Google drive link",
+    "Vertical Head", "KAM", "Phone Number (KAM)", "Mail (KAM)", "L1 Category", "Note",
+    "Email Address", "Seller Code", "File Type", "Seller Pick/Drop Status",
+    "Seller Status (After QC)", "Status", "Uploaded by", "Image Source", "Visual editor",
+    "Image Status", "Comments", "Image count", "Edited (By Hand)", "Uploaded SKU Count",
+    "Rejected SKU Count", "QC By", "QC Status", "Approved QC Count", "Rejected QC Count",
+    "QC approved date", "Upload date", "Image Delivered Date", "Weeks", "Month", "Vertical",
+    "Upload Month", "QC Approved Month", "Image Delivered Month", "Visual", "Upload", "QC",
+    "Edited (By AI)"
+  ]
+}

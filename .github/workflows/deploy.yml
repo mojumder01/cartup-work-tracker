@@ -1,0 +1,78 @@
+name: Sync Google Sheet & Deploy
+
+on:
+  # How often the dashboard data is refreshed from Google Sheets.
+  # GitHub's minimum is every 5 minutes, and scheduled runs can start a few minutes late.
+  # To change the interval, edit this cron expression (UTC), e.g. '*/15 * * * *' or '0 * * * *'.
+  schedule:
+    - cron: '*/5 * * * *'
+  # "Run workflow" button in the Actions tab = manual refresh.
+  workflow_dispatch:
+  # Rebuild when dashboard code or config changes on the default branch.
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a queued run waits instead of cancelling a live deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      # Reads the sheet with the service account (secret) and writes public/data/data.json.
+      # If this fails, the job stops and the previously deployed dashboard stays online.
+      - name: Fetch Google Sheet data
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+        run: node scripts/fetch-sheets.mjs
+
+      - name: Validate generated data
+        run: |
+          node -e "
+            const d = require('./public/data/data.json');
+            if (!d.work || !d.work.columns.length) throw new Error('Work Sheet data is empty');
+            console.log('Work rows:', d.work.rows.length, '| KPI tab:', d.kpi ? 'yes' : 'no', '| Target tab:', d.target ? 'yes' : 'no');
+            console.log('Size:', (JSON.stringify(d).length / 1e6).toFixed(2), 'MB');
+          "
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test data scripts
+        run: npm test
+
+      - name: Build dashboard
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
