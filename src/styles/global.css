@@ -458,3 +458,29 @@ table.data tfoot td { font-weight: 700; background: var(--surface-2); position: 
   .sheet .nav-item { justify-content: flex-start; width: 100%; height: auto; padding: 12px; }
   .sheet .nav-item .label { display: inline; }
 }
+
+/* ---------- Governance ---------- */
+.gov-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.gov-card {
+  text-align: left; font: inherit; color: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 6px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 14px 16px;
+}
+.gov-card:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.gov-card-top { display: flex; gap: 6px; flex-wrap: wrap; }
+.gov-card-title { font-weight: 700; font-size: 15px; }
+.gov-card-nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; font-size: 11.5px; color: var(--ink-3); }
+.gov-card-nums b { display: block; font-size: 15px; color: var(--ink); }
+.gov-card-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 8px; }
+.avatar-sm { width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: inline-grid; place-items: center; font-size: 11px; font-weight: 700; border: 2px solid var(--surface); margin-right: -6px; }
+.gov-drawer { width: min(680px, 100vw); }
+.gov-form { width: min(560px, 100vw); }
+.gov-form-body { display: flex; flex-direction: column; gap: 12px; padding-top: 14px; flex: 1; }
+.gov-form-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--border); }
+.gov-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.gov-stat-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; font-size: 13px; }
+.gov-log-form { display: flex; flex-direction: column; gap: 10px; }
+.gov-log-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 720px) {
+  .gov-2col, .gov-stat-row { grid-template-columns: 1fr 1fr; }
+  .gov-log-grid { grid-template-columns: 1fr 1fr; }
+}
