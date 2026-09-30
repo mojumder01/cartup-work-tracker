@@ -19,13 +19,25 @@ export interface DashboardData {
     workSheet: string;
     kpiSheet: string | null;
     targetSheet: string | null;
+    sellerQcSheet?: string | null;
+    teamSheet?: string | null;
     workHeaderRow: number | null;
     excludedColumns: string[];
   };
   work: { sheet: string; columns: string[]; rows: CellValue[][] };
   kpi: ReportTab | null;
   target: ReportTab | null;
+  /** "Admin portal QC import data" (seller-uploaded QC), selected columns only. */
+  sellerQc?: FlatTable | null;
+  /** Optional "Team Members" roster tab. */
+  team?: FlatTable | null;
   warnings: string[];
+}
+
+export interface FlatTable {
+  sheet: string;
+  columns: string[];
+  rows: CellValue[][];
 }
 
 /** One Work Sheet row, with dates pre-parsed for fast filtering. */
@@ -88,4 +100,4 @@ export interface KpiReport {
   headlineParts: { section: string; metric: string; pct: number }[];
 }
 
-export type Route = 'dashboard' | 'work' | 'kpi' | 'team' | 'upload' | 'qc' | 'visual' | 'reports' | 'settings';
+export type Route = 'dashboard' | 'work' | 'kpi' | 'team' | 'upload' | 'qc' | 'visual' | 'reports' | 'people' | 'settings';

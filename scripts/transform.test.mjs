@@ -74,3 +74,17 @@ test('helpers', () => {
     '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc',
   );
 });
+
+test('transformWorkSheet includeColumns keeps only listed columns', () => {
+  const grid = [
+    ['Timestamp', 'Shop Name', 'QC By', 'Number of SKUs', 'QC Date'],
+    [46283.5, 'Shop', 'Jerry', 7, 46283],
+  ];
+  const { table } = transformWorkSheet(grid, {
+    expectedColumns: ['QC By', 'Number of SKUs', 'QC Date'],
+    includeColumns: ['QC By', 'Number of SKUs', 'QC Date'],
+    label: 'Admin portal QC import data',
+  });
+  assert.deepEqual(table.columns, ['QC By', 'Number of SKUs', 'QC Date']);
+  assert.deepEqual(table.rows, [['Jerry', 7, '2026-09-18']]);
+});

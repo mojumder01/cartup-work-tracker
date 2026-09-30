@@ -23,7 +23,8 @@ Google Sheet ──► Google Sheets API ──► GitHub Action (every 5 min) �
 | KPI & Target | Every team table from the KPI & Target tab with Target, Actual, Achievement % (Actual ÷ Target × 100), Gap (Actual − Target) and progress bars; a "Sheet table" view shows every column |
 | Team Performance | Pick any person to see their jobs, SKU, uploads, QC, image work, AI/manual editing and their KPI rows, whatever roles they appear in |
 | Upload / QC / Visual | Daily/weekly/monthly trends, per-person bars, status breakdowns, SLA labels, median turnaround |
-| Reports | Export filtered data (CSV/Excel, visible or all columns), Monthly Performance (current, previous or any month), summary CSVs |
+| Reports | **Individual Summary report** (weekly / monthly / yearly, vs previous period or same period last year, pick teams & people, one-click PDF/Excel), Monthly Performance, data exports |
+| Team Members | Full names for reports, team assignment, **mark who left the job** (with last working day) |
 | Settings | Auto-refresh interval, theme, data-source details, data-health warnings, mapping overview |
 | Interaction | Global filters (date preset/custom, month, vertical, task type, status, employee, uploaded by, QC by, visual editor, shop name, L1 category), debounced global search, click-to-filter charts, click-to-drill KPI cards, Reset |
 | Quality | TypeScript, error boundaries, loading/empty/error states, responsive (sidebar → icon rail → bottom nav), light and dark themes |
@@ -87,6 +88,8 @@ Values you may need to change live in two files. Neither holds secrets.
 | `spreadsheetId` | Default sheet ID (the `GOOGLE_SHEET_ID` secret overrides it) |
 | `tabs.work` / `tabs.kpi` | Tab names: `Work Sheet`, `KPI & Target` |
 | `tabs.target` | Optional tab names to look for, e.g. `["Target"]`. If none exists, the dashboard works without it. |
+| `tabs.sellerQc` / `sellerQcColumns` | Seller-uploaded QC tab used by the Individual Summary report. Only these columns are published. |
+| `tabs.team` / `teamColumns` | Optional `Team Members` roster tab |
 | `excludeColumns` | Columns **never published**. Defaults to `Seller Login ID` and `Seller Login Password`. |
 | `dateColumns` | Columns converted from sheet date serials to dates |
 | `expectedWorkColumns` | Used to find the header row and to warn about missing columns |
@@ -121,6 +124,42 @@ The tab is a report layout, not a flat table: `A1` = `TODAY()`, `B1` = the KPI m
 The **KPI Achievement %** headline card is the average of the team-level monthly achievements; hover it to see each part. Actual values are the ones Google Sheets computes with its own formulas, so the KPI section always reflects the month set in `B1`. If the layout changes, adjust the regexes in `kpi.metricPairs`. Unrecognised layouts show N/A plus a hint, never guessed numbers.
 
 ---
+
+## Individual Summary report
+
+**Reports → Individual Summary** builds the Cartup "Individual Summary — Week 37 vs Week 38" slide from live data. It opens on the last completed week vs the week before, so a report is **one click → PDF / Print** (choose "Save as PDF", or it prints on one 16:9 page).
+
+Options (remembered in your browser):
+- **Report type:** Weekly, Monthly or Yearly, any available period.
+- **Compare with:** the previous week/month/year, or the same period last year.
+- **Teams & people:** tick Production, Visual and/or QC, and tick who appears. *Auto* = active team members with work in either period. People who left are not pre-selected.
+- **Summary line & Key Notes** are generated from the numbers and can be edited before printing.
+- **Extra highlight boxes** for work that is not in the Work Sheet (Campaign Sticker, Keyword Tag Checking, Category Revamp…).
+- **Excel** downloads the same tables.
+
+How each number is calculated (checked against the Week 37 vs Week 38 template):
+
+| Section | Calculation |
+|---|---|
+| Production — Seller / SKUs | Work Sheet rows by **Uploaded by** with **Upload date** in the period / Σ Uploaded SKU Count |
+| Visual — Slr / Hand / AI / Total | Rows by **Visual editor** with **Image Delivered Date** in the period / Σ Edited (By Hand) / Σ Edited (By AI) / Σ Image count |
+| QC — Upload | Σ (Approved QC Count + Rejected QC Count) by **QC By** and **QC approved date** |
+| QC — Seller | Σ Number of SKUs in the **Admin portal QC import data** tab by QC By and QC Date |
+| Upload backlog | Requests received before the period end and not uploaded by then (Rejected excluded) |
+| Week numbers | Week 1 = first full Sun–Sat week of the year (13–19 Sep 2026 = Week 37), as in the template. Change `WEEK_NUMBERING` in `src/config/people.config.ts` to use the sheet's WEEKNUM instead. |
+
+The **Product Governance** report is planned for a later update.
+
+## Team Members (who left the job)
+
+**Team Members** lists everyone found in the Work Sheet. For each person you can set the full name printed on reports, their team, and **Left the job** plus their last working day. A person who left is still included in reports for periods before that date. An "inactive 45d+" badge flags people with no recent work.
+
+Where the roster comes from (highest priority first):
+1. Changes made on the Team Members page. These are saved **in that browser only**.
+2. An optional **`Team Members`** tab in the Google Sheet with columns `Name | Full Name | Team | Status | Left Date`. This is shared with everyone.
+3. Defaults in `src/config/people.config.ts`.
+
+To share your changes with everyone: click **Copy for Google Sheet**, paste into cell A1 of a `Team Members` tab, and the next sync (≤ 5 min) applies it for all viewers.
 
 ## Security
 

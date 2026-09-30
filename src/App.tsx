@@ -16,11 +16,12 @@ import WorkSheetPage from './pages/WorkSheetPage';
 import KpiPage from './pages/KpiPage';
 import TeamPage from './pages/TeamPage';
 import ReportsPage from './pages/ReportsPage';
+import PeoplePage from './pages/PeoplePage';
 import SettingsPage, { type Theme } from './pages/SettingsPage';
 import { QcPage, UploadPage, VisualPage } from './pages/SectionPages';
 
 /** Pages that do not depend on the Work Sheet filters. */
-const NO_FILTER_ROUTES: Route[] = ['kpi', 'settings'];
+const NO_FILTER_ROUTES: Route[] = ['kpi', 'settings', 'people', 'reports'];
 
 function ConnectedHeader(props: { updatedAt: string; checkedAt: number | null; loading: boolean; onRefresh: () => void; route: Route }) {
   const { filters, setFilters, navigate } = useApp();
@@ -52,6 +53,8 @@ function Page({ route, prefs }: { route: Route; prefs: { refreshMinutes: number;
       return <VisualPage />;
     case 'reports':
       return <ReportsPage />;
+    case 'people':
+      return <PeoplePage />;
     case 'settings':
       return <SettingsPage {...prefs} />;
     default:

@@ -91,12 +91,18 @@ export const TargetVsAchievementCard = memo(function TargetVsAchievementCard() {
   );
 });
 
-export function KpiTeamCard({ section, highlight }: { section: KpiSection; highlight?: string }) {
-  const { openPerson } = useApp();
+export function KpiTeamCard({ section, highlight, hideLeft = false }: { section: KpiSection; highlight?: string; hideLeft?: boolean }) {
+  const { openPerson, roster } = useApp();
+  const leftSet = new Set(roster.filter((p) => p.status === 'Left').map((p) => p.name.toLowerCase()));
+  const employees = hideLeft ? section.employees.filter((e) => !leftSet.has(e.name.toLowerCase())) : section.employees;
+  const hidden = section.employees.length - employees.length;
   const monthly = section.totals.filter((m) => m.scope === 'month');
   const today = section.totals.filter((m) => m.scope === 'today');
   return (
-    <Card title={section.title} subtitle={`${section.employees.length} members · ${section.metricIds.length} target/actual pairs`}>
+    <Card
+      title={section.title}
+      subtitle={`${employees.length} members${hidden ? ` (${hidden} who left hidden)` : ''} · ${section.metricIds.length} target/actual pairs · team totals include everyone in the sheet`}
+    >
       {section.metricIds.length === 0 ? (
         <EmptyState title="No target/actual pairs recognised" message="Achievement is shown as N/A. Adjust kpi.metricPairs in the dashboard config." small />
       ) : (
@@ -115,10 +121,11 @@ export function KpiTeamCard({ section, highlight }: { section: KpiSection; highl
               </div>
             ))}
           </div>
-          {section.employees.map((e) => (
+          {employees.map((e) => (
             <div className="kpi-person" key={e.name} style={highlight && e.name.toLowerCase() === highlight.toLowerCase() ? { background: 'var(--accent-soft)', borderRadius: 8, padding: '14px 10px' } : undefined}>
               <button type="button" className="btn btn-ghost btn-sm who" style={{ justifyContent: 'flex-start' }} onClick={() => openPerson(e.name)}>
                 {e.name}
+                {leftSet.has(e.name.toLowerCase()) && <span className="badge bad" style={{ marginLeft: 6 }}>Left</span>}
               </button>
               {e.metrics.map((m) => (
                 <MetricBlock key={m.id} m={m} />

@@ -11,6 +11,7 @@ export const NAV: { id: Route; label: string; icon: IconName; group: 'Overview' 
   { id: 'qc', label: 'QC', icon: 'qc', group: 'Performance' },
   { id: 'visual', label: 'Visual / Image', icon: 'image', group: 'Performance' },
   { id: 'reports', label: 'Reports', icon: 'report', group: 'Data' },
+  { id: 'people', label: 'Team Members', icon: 'userCheck', group: 'Data' },
   { id: 'settings', label: 'Settings', icon: 'settings', group: 'Data' },
 ];
 

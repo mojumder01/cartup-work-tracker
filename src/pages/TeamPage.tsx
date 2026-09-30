@@ -58,7 +58,8 @@ function KpiLine({ section, m }: { section: string; m: KpiMetric }) {
 }
 
 export default function TeamPage() {
-  const { dataset, filtered, kpi, person, setPerson } = useApp();
+  const { dataset, filtered, kpi, person, setPerson, roster } = useApp();
+  const leftSet = useMemo(() => new Set(roster.filter((p) => p.status === 'Left').map((p) => p.name.toLowerCase())), [roster]);
   const roles = dashboardConfig.personColumns.filter((c) => dataset.has(c));
 
   const people = useMemo(() => {
@@ -96,11 +97,22 @@ export default function TeamPage() {
             <span>Team member</span>
             <select className={`select ${person ? 'is-set' : ''}`} value={person} onChange={(e) => setPerson(e.target.value)}>
               <option value="">— Select a person —</option>
-              {people.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
+              <optgroup label="Active">
+                {people.filter((p) => !leftSet.has(p.toLowerCase())).map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </optgroup>
+              {leftSet.size > 0 && (
+                <optgroup label="Left the job">
+                  {people.filter((p) => leftSet.has(p.toLowerCase())).map((p) => (
+                    <option key={p} value={p}>
+                      {p} (left)
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </label>
           {person && (
@@ -113,6 +125,7 @@ export default function TeamPage() {
                 <div className="roles">
                   {roleRows.length ? roleRows.map((r) => <span className="badge info" key={r.role}>{r.role}</span>) : <span className="muted">No work records in current filters</span>}
                   {kpiLines.length > 0 && <span className="badge">KPI tracked</span>}
+                  {leftSet.has(key) && <span className="badge bad">Left the job</span>}
                 </div>
               </div>
               <button type="button" className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setPerson('')}>
