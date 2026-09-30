@@ -19,6 +19,21 @@ export class DataSourceError extends Error {
   }
 }
 
+/**
+ * Accepts raw JSON, base64-encoded JSON, or JSON pasted without its outer
+ * braces (a common copy/paste slip when updating the secret).
+ */
+export function normalizeKeyText(raw) {
+  let text = raw.trim();
+  if (!text.startsWith('{') && !text.startsWith('"')) {
+    const decoded = Buffer.from(text, 'base64').toString('utf8').trim();
+    if (decoded.startsWith('{')) return decoded;
+  }
+  if (!text.startsWith('{') && text.includes('"type"')) text = `{${text.replace(/,\s*$/, '')}`;
+  if (text.startsWith('{') && !text.endsWith('}')) text = `${text.replace(/,\s*$/, '')}}`;
+  return text;
+}
+
 /** Parses and validates the service-account JSON without echoing any of it. */
 export function parseServiceAccount(raw) {
   if (!raw || !raw.trim()) {
@@ -29,9 +44,7 @@ export function parseServiceAccount(raw) {
   }
   let json;
   try {
-    // Accept either raw JSON or base64-encoded JSON.
-    const text = raw.trim().startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8');
-    json = JSON.parse(text);
+    json = JSON.parse(normalizeKeyText(raw));
   } catch {
     throw new DataSourceError(
       'AUTH',
