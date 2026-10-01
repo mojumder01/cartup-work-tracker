@@ -74,6 +74,18 @@ export const dashboardConfig = {
     pending: ['Pending', 'Running'],
   },
 
+  /**
+   * Which rows count as an employee's finished work — used everywhere a number is shown per person
+   * (Team Performance, charts, Individual Summary, exports). A row is counted for the person in
+   * `column` only when its `status` is one of `done` AND `date` is filled; the work belongs to the
+   * day in `date`. Assigned work that is still Running / Pending (or Rejected) is not counted.
+   */
+  credit: [
+    { team: 'Production', column: 'Uploaded by', date: 'Upload date', status: 'Status', done: ['Done'] },
+    { team: 'QC', column: 'QC By', date: 'QC approved date', status: 'QC Status', done: ['QC Done', 'QC Rejected'] },
+    { team: 'Visual', column: 'Visual editor', date: 'Image Delivered Date', status: 'Image Status', done: ['Delivered'] },
+  ] as { team: 'Production' | 'QC' | 'Visual'; column: string; date: string; status: string; done: string[] }[],
+
   /** QC Status value that means QC was completed. */
   qcDoneValues: ['QC Done'],
 

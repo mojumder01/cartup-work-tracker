@@ -100,6 +100,11 @@ export interface ApplyOptions {
   /** Skip date & month filters (used by views that pick their own month). */
   ignoreDate?: boolean;
   ignoreSearch?: boolean;
+  /**
+   * Use this date column for the date range and month filters instead of the chosen date basis
+   * (per-person numbers use the date the work was finished, e.g. "Upload date").
+   */
+  dateColumn?: string;
 }
 
 export function applyFilters(records: WorkRecord[], f: Filters, opts: ApplyOptions = {}): WorkRecord[] {
@@ -112,10 +117,14 @@ export function applyFilters(records: WorkRecord[], f: Filters, opts: ApplyOptio
 
   return records.filter((r) => {
     if (range) {
-      const ms = r.dates[f.dateBasis];
+      const ms = r.dates[opts.dateColumn ?? f.dateBasis];
       if (ms == null || ms < range[0] || ms >= range[1]) return false;
     }
-    if (month && recordMonth(r) !== month) return false;
+    if (month) {
+      const own = opts.dateColumn ? r.dates[opts.dateColumn] : undefined;
+      const key = opts.dateColumn ? (own != null ? monthKeyOf(own) : null) : recordMonth(r);
+      if (key !== month) return false;
+    }
     for (const [col, val] of dims) if (text(r.values[col]).toLowerCase() !== val.toLowerCase()) return false;
     if (employee && !empCols.some((c) => text(r.values[c]).toLowerCase() === employee)) return false;
     if (f.drill && !matchesDrill(r, f.drill)) return false;

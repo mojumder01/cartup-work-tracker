@@ -125,6 +125,24 @@ The **KPI Achievement %** headline card is the average of the team-level monthly
 
 ---
 
+## What counts for an employee
+
+Every per-person number (Team Performance, the person charts, Team Member page, Individual Summary, the per-role exports and the employee detail report) uses one rule, set in `credit` in `src/config/dashboard.config.ts`:
+
+| Role | Counted when | Dated by |
+|---|---|---|
+| Uploaded by | **Status = Done** | Upload date |
+| QC By | **QC Status = QC Done / QC Rejected** | QC approved date |
+| Visual editor | **Image Status = Delivered** | Image Delivered Date |
+
+Work that is assigned but still **Running / Pending** (or Rejected) is **not** counted for the person. The Team Member page shows how many such rows exist, and the Work Sheet table still lists them. Date filters on per-person numbers use the role's own date, so an August request uploaded in September counts in September everywhere. The **KPI & Target** page shows the values calculated by the sheet's own formulas, and these can follow different rules.
+
+**Employee detail report** (Reports → Individual Summary → *Employee detail report*): choose one person and download an Excel workbook for the selected two periods with these sheets:
+- **Summary**: the same numbers as the slide, plus the person's KPI & Target tab lines.
+- **Rows behind each number**: one sheet per role (*Production rows*, *Visual rows*, *QC rows*, *QC rows – seller*), with totals.
+- **Not counted**: assigned work that was not counted, and why.
+- **Governance Ad-Hoc / REVAMP progress**: included when the person appears there.
+
 ## Individual Summary report
 
 **Reports → Individual Summary** builds the Cartup "Individual Summary — Week 37 vs Week 38" slide from live data. It opens on the last completed week vs the week before, so a report is **one click → PDF / Print** (choose "Save as PDF", or it prints on one 16:9 page).

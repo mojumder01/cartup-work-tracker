@@ -1,6 +1,9 @@
 /**
  * "Individual Summary — <previous> vs <current>" report model.
  *
+ * Only finished work counts (dashboardConfig.credit — e.g. Status "Done" for uploads); rows that are
+ * assigned but Running / Pending are left out, exactly as on the Team Performance page.
+ *
  * Metric definitions (verified against the Week 37 vs Week 38 template):
  *  - Production: rows by "Uploaded by" with an "Upload date" in the period.
  *      Seller = number of rows (one row = one seller request), SKUs = Σ "Uploaded SKU Count".
@@ -18,6 +21,7 @@ import { fmtNum } from './format';
 import { parseDate, text, toNumber } from './parse';
 import type { Period } from './periods';
 import { findPerson, type Person } from './roster';
+import { checkCredit, creditRule } from './credit';
 
 export interface SellerQcRow {
   qcBy: string;
@@ -77,11 +81,14 @@ export interface IndividualReport {
 const inRange = (ms: number | null | undefined, p: Period) => ms != null && ms >= p.start && ms < p.end;
 const n = (v: unknown) => toNumber(v as never) ?? 0;
 
+/** Per-person sums of finished work (dashboardConfig.credit) dated in the period. */
 function sumBy(ds: Dataset, role: string, dateCol: string, p: Period, fields: Record<string, (r: Dataset['records'][number]) => number>) {
   const out = new Map<string, Nums>();
   if (!ds.has(role) || !ds.has(dateCol)) return out;
+  const rule = creditRule(role);
   for (const r of ds.records) {
     if (!inRange(r.dates[dateCol], p)) continue;
+    if (rule && !checkCredit(ds, r, rule).counted) continue;
     const name = text(r.values[role]).toLowerCase();
     if (!name) continue;
     let acc = out.get(name);

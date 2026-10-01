@@ -47,8 +47,8 @@ function TrendCard({ title, dateCol, sumCol, valueLabel, color, span = true }: {
 }
 
 function PersonBars({ title, subtitle, role, sumCol, valueHeader, color }: { title: string; subtitle: string; role: string; sumCol?: string; valueHeader: string; color: string }) {
-  const { dataset, filtered, openPerson } = useApp();
-  const groups = useMemo(() => groupBy(filtered, role, sumCol), [filtered, role, sumCol]);
+  const { dataset, roleRecords, openPerson } = useApp();
+  const groups = useMemo(() => groupBy(roleRecords(role), role, sumCol), [roleRecords, role, sumCol]);
   if (!dataset.has(role)) {
     return (
       <Card title={title}>
@@ -58,7 +58,7 @@ function PersonBars({ title, subtitle, role, sumCol, valueHeader, color }: { tit
   }
   const items = groups.map((g) => (sumCol ? { key: g.key, value: g.sum, secondary: g.count } : { key: g.key, value: g.count })).sort((a, b) => b.value - a.value);
   return (
-    <Card title={title} subtitle={`${subtitle} · click a name for details`}>
+    <Card title={title} subtitle={`${subtitle} · finished work only · click a name for details`}>
       {items.length ? (
         <BarList labelHeader={role} valueHeader={valueHeader} secondaryHeader={sumCol ? 'Jobs' : undefined} items={items} onSelect={openPerson} color={color} limit={10} />
       ) : (
@@ -232,11 +232,11 @@ export const AiManualCard = memo(function AiManualCard() {
 });
 
 function EditorTable() {
-  const { dataset, filtered, openPerson } = useApp();
-  const rows = useMemo(() => personTable(filtered, C.visualEditor), [filtered]);
+  const { dataset, roleRecords, openPerson } = useApp();
+  const rows = useMemo(() => personTable(roleRecords(C.visualEditor), C.visualEditor), [roleRecords]);
   if (!dataset.has(C.visualEditor)) return null;
   return (
-    <Card title="Visual editor breakdown" subtitle="Jobs, images and editing mode per editor" bodyClassName="">
+    <Card title="Visual editor breakdown" subtitle="Delivered jobs, images and editing mode per editor (by Image Delivered Date)" bodyClassName="">
       {rows.length ? (
         <div className="table-wrap flush">
           <table className="data">
