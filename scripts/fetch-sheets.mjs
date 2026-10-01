@@ -119,6 +119,17 @@ async function main() {
   await mkdir(dirname(OUTPUT), { recursive: true });
   await writeFile(OUTPUT, JSON.stringify(data));
   console.log(`Wrote ${OUTPUT}: ${work.table.rows.length} work rows, ${work.table.columns.length} columns.`);
+
+  // Tiny file for the task update form (form.html): Web app URL + names only, no row data.
+  const names = new Set();
+  for (const col of ['Uploaded by', 'QC By', 'Visual editor']) {
+    const i = work.table.columns.indexOf(col);
+    if (i < 0) continue;
+    for (const r of work.table.rows) if (typeof r[i] === 'string' && r[i].trim() && r[i].length <= 60) names.add(r[i].trim());
+  }
+  const formOut = resolve(dirname(OUTPUT), 'form.json');
+  await writeFile(formOut, JSON.stringify({ updatedAt: data.updatedAt, appsScriptUrl: data.appsScriptUrl, people: [...names].sort((a, b) => a.localeCompare(b)) }));
+  console.log(`Wrote ${formOut}: ${names.size} names.`);
   for (const w of warnings) console.log(`::warning::${w}`);
 }
 

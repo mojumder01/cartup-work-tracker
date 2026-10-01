@@ -1,0 +1,23 @@
+.tf-page { min-height: 100vh; background: var(--bg); display: flex; justify-content: center; padding: 24px 16px 48px; }
+.tf-wrap { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 14px; }
+.tf-head { display: flex; align-items: center; gap: 12px; }
+.tf-logo { width: 40px; height: 40px; border-radius: 10px; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-weight: 800; font-size: 20px; }
+.tf-head h1 { margin: 0; font-size: 20px; }
+.tf-head .muted { font-size: 13px; }
+.tf-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.tf-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tf-job { display: flex; gap: 8px; align-items: flex-end; }
+.tf-job .field { flex: 1; }
+.tf-info { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 13.5px; background: var(--surface-2, var(--accent-soft)); border-radius: 10px; padding: 12px 14px; }
+.tf-info dt { color: var(--ink-3); }
+.tf-info dd { margin: 0; font-weight: 600; word-break: break-word; }
+.tf-msg { border-radius: 10px; padding: 10px 12px; font-size: 13.5px; }
+.tf-msg.bad { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
+.tf-msg.warn { background: color-mix(in srgb, #d97706 16%, transparent); color: #b45309; }
+.tf-msg.good { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
+.tf-hint { font-size: 12px; color: var(--ink-3); }
+.tf-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.tf-page textarea.input { min-height: 80px; padding-top: 8px; resize: vertical; }
+@media (max-width: 560px) { .tf-row { grid-template-columns: 1fr; } }
+.tf-page textarea.input { font-family: inherit; font-size: 14px; }
+.tf-hint { text-transform: none; letter-spacing: normal; font-weight: 400; }

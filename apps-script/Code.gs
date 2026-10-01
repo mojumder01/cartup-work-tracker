@@ -18,6 +18,11 @@
  * keeps your columns; columns are always matched by header name, so you may
  * re-order them or add your own. The "Main" Ad-Hoc tab is never modified.
  *
+ * Task update form (form.html): the same script also updates rows of the main
+ * "Cartup Content Work Tracker" → "Work Sheet" tab by JOB ID (Status, Uploaded SKU
+ * Count, Upload date, Upload Month, Comments) and records every change in a
+ * "Form Log" tab there. Share that sheet with this script's account as Editor.
+ *
  * Optional — "Update data" button on the dashboard:
  *   Project Settings (gear) → Script Properties → add
  *     GITHUB_TOKEN = a fine-grained GitHub token with access to ONLY the
@@ -27,6 +32,17 @@
  */
 
 var SPREADSHEET_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
+/** Main "Cartup Content Work Tracker" sheet — the task update form writes to its Work Sheet tab. */
+var WORK_SPREADSHEET_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
+var WORK_TAB = 'Work Sheet';
+var FORM_LOG_TAB = 'Form Log';
+var FORM_LOG_HEADERS = ['Timestamp', 'JOB ID', 'Submitted By', 'Field', 'Old Value', 'New Value'];
+/** Columns the task update form may change (nothing else is ever written). */
+var FORM_FIELDS = ['Status', 'Uploaded SKU Count', 'Upload date', 'Upload Month', 'Comments'];
+/** Columns shown when a JOB ID is checked (never login/password columns). */
+var JOB_VIEW = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'Number of SKU', 'Status', 'Uploaded by',
+  'Uploaded SKU Count', 'Rejected SKU Count', 'Upload date', 'Upload Month', 'Comments'];
+var JOB_STATUSES = ['Done', 'Running', 'Pending', 'Rejected'];
 var PROJECTS_TAB = 'Projects';
 var PROGRESS_TAB = 'Project Progress';
 var PROJECT_HEADERS = ['Project ID', 'Created At', 'Project Name', 'Work Type', 'Description', 'POC', 'Assignees',
@@ -158,9 +174,12 @@ function doGet(e) {
     if (action === 'ping') {
       var sheet = { ok: true, error: null };
       try { ss_(); } catch (err) { sheet = { ok: false, error: String(err && err.message ? err.message : err) }; }
-      return json_({ ok: true, sync: !!github_(), sheet: sheet.ok, sheetError: sheet.error, account: account_() });
+      var work = { ok: true, error: null };
+      try { workSheet_(); } catch (err2) { work = { ok: false, error: String(err2 && err2.message ? err2.message : err2) }; }
+      return json_({ ok: true, sync: !!github_(), sheet: sheet.ok, sheetError: sheet.error, work: work.ok, workError: work.error, account: account_() });
     }
     if (action === 'syncStatus') return json_(syncStatus_());
+    if (action === 'job') return json_(lookupJob_(e.parameter.id));
     return json_({ ok: true, projects: readTab_(PROJECTS_TAB, PROJECT_HEADERS), progress: readTab_(PROGRESS_TAB, PROGRESS_HEADERS) });
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message ? err.message : err) });
@@ -264,6 +283,7 @@ function doPost(e) {
     var now = Utilities.formatDate(new Date(), tz, "yyyy-MM-dd'T'HH:mm:ss");
 
     if (body.action === 'triggerSync') return json_(triggerSync_());
+    if (body.action === 'submitTask') return json_(submitTask_(body, now));
 
     if (body.action === 'createProject') {
       var p = body.project || {};
@@ -319,6 +339,138 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ---- Task update form (form.html) -----------------------------------------
+
+/** The Work Sheet tab of the main sheet, with its header row and columns (by name). */
+function workSheet_() {
+  var ss;
+  try {
+    ss = SpreadsheetApp.openById(WORK_SPREADSHEET_ID);
+  } catch (e) {
+    throw new Error('The Apps Script runs as ' + account_() + ', and that account cannot edit the "Cartup Content Work Tracker" sheet. ' +
+      'Share that sheet with ' + account_() + ' as Editor.');
+  }
+  var sh = ss.getSheetByName(WORK_TAB);
+  if (!sh) throw new Error('Tab "' + WORK_TAB + '" not found in the main sheet.');
+  var top = sh.getRange(1, 1, Math.min(10, sh.getLastRow()), sh.getLastColumn()).getValues();
+  for (var r = 0; r < top.length; r++) {
+    var cols = {};
+    top[r].forEach(function (h, i) { var k = String(h).trim().toLowerCase(); if (k && cols[k] === undefined) cols[k] = i + 1; });
+    if (cols['job id']) return { sh: sh, headerRow: r + 1, col: function (name) { return cols[String(name).toLowerCase()] || 0; } };
+  }
+  throw new Error('No "JOB ID" header found in the first 10 rows of "' + WORK_TAB + '".');
+}
+
+function findJobRow_(w, id) {
+  var c = w.col('JOB ID');
+  var last = w.sh.getLastRow();
+  if (last <= w.headerRow) return -1;
+  var hit = w.sh.getRange(w.headerRow + 1, c, last - w.headerRow, 1).createTextFinder(id).matchEntireCell(true).matchCase(false).findNext();
+  return hit ? hit.getRow() : -1;
+}
+
+function jobId_(v) {
+  var s = String(v || '').trim().toUpperCase();
+  if (!/^[A-Z0-9][A-Z0-9_-]{1,39}$/.test(s)) throw new Error('Enter a valid JOB ID (letters and numbers, e.g. CCWT10000).');
+  return s;
+}
+
+function cellOut_(v, tz) {
+  if (Object.prototype.toString.call(v) === '[object Date]') return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+  return v === '' ? null : v;
+}
+
+/** True when the cell (or its column, via ARRAYFORMULA) is calculated by the sheet. */
+function isFormula_(w, row, c) {
+  if (w.sh.getRange(row, c).getFormula()) return true;
+  var head = w.sh.getRange(1, c, w.headerRow + 1, 1).getFormulas();
+  return head.some(function (f) { return /ARRAYFORMULA|MAP\(|BYROW\(/i.test(f[0]); });
+}
+
+/** GET ?action=job&id=… → the row's main fields (live), or found: false. */
+function lookupJob_(idRaw) {
+  var id = jobId_(idRaw);
+  var w = workSheet_();
+  var row = findJobRow_(w, id);
+  if (row < 0) return { ok: true, found: false, id: id };
+  var tz = Session.getScriptTimeZone();
+  var values = w.sh.getRange(row, 1, 1, w.sh.getLastColumn()).getValues()[0];
+  var job = {};
+  JOB_VIEW.forEach(function (h) { var c = w.col(h); job[h] = c ? cellOut_(values[c - 1], tz) : null; });
+  var locked = FORM_FIELDS.filter(function (h) { var c = w.col(h); return !c || isFormula_(w, row, c); });
+  return { ok: true, found: true, id: id, row: row, job: job, locked: locked, statuses: JOB_STATUSES };
+}
+
+function dateOf_(v) {
+  var m = String(v || '').match(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/);
+  if (!m) throw new Error('Invalid date: ' + v);
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3] || 1));
+}
+
+/** POST { action:'submitTask', jobId, by, changes:{…} } → writes only FORM_FIELDS that changed, logs old → new. */
+function submitTask_(body, now) {
+  var id = jobId_(body.jobId);
+  var by = str_(body.by, 60);
+  if (!by) throw new Error('Choose your name.');
+  var w = workSheet_();
+  var row = findJobRow_(w, id);
+  if (row < 0) throw new Error('JOB ID ' + id + ' is not in the Work Sheet.');
+  var ch = body.changes || {};
+  var tz = Session.getScriptTimeZone();
+  var written = [];
+  var skipped = [];
+  var log = [];
+  var put = function (header, value, display) {
+    var c = w.col(header);
+    if (!c) { skipped.push({ field: header, reason: 'column not found' }); return; }
+    if (isFormula_(w, row, c)) { skipped.push({ field: header, reason: 'calculated by the sheet' }); return; }
+    var cell = w.sh.getRange(row, c);
+    var old = cellOut_(cell.getValue(), tz);
+    if (String(old === null ? '' : old) === String(display === null ? '' : display)) return;
+    cell.setValue(value);
+    written.push(header);
+    log.push([now, id, by, header, old === null ? '' : String(old), display === null ? '' : String(display)]);
+  };
+  if (ch['Status'] !== undefined) {
+    var st = String(ch['Status']);
+    if (JOB_STATUSES.indexOf(st) < 0) throw new Error('Status must be one of ' + JOB_STATUSES.join(', '));
+    put('Status', st, st);
+  }
+  if (ch['Uploaded SKU Count'] !== undefined) {
+    var n = num_(ch['Uploaded SKU Count']);
+    put('Uploaded SKU Count', n, n === '' ? null : n);
+  }
+  if (ch['Upload date'] !== undefined) {
+    if (ch['Upload date']) put('Upload date', dateOf_(ch['Upload date']), String(ch['Upload date']));
+    else put('Upload date', '', null);
+  }
+  if (ch['Upload Month'] !== undefined) {
+    if (ch['Upload Month']) put('Upload Month', dateOf_(String(ch['Upload Month']).slice(0, 7)), String(ch['Upload Month']).slice(0, 7) + '-01');
+    else put('Upload Month', '', null);
+  }
+  if (ch['Comments'] !== undefined) {
+    var cm = str_(ch['Comments'], 1000);
+    put('Comments', cm, cm);
+  }
+  // Credit the work to the person submitting when nobody is set as uploader yet.
+  var ub = w.col('Uploaded by');
+  if (ub && written.length && !String(w.sh.getRange(row, ub).getValue()).trim() && !isFormula_(w, row, ub)) {
+    w.sh.getRange(row, ub).setValue(by);
+    written.push('Uploaded by');
+    log.push([now, id, by, 'Uploaded by', '', by]);
+  }
+  if (log.length) {
+    var lg = w.sh.getParent().getSheetByName(FORM_LOG_TAB);
+    if (!lg) {
+      lg = w.sh.getParent().insertSheet(FORM_LOG_TAB);
+      lg.getRange(1, 1, 1, FORM_LOG_HEADERS.length).setValues([FORM_LOG_HEADERS]).setFontWeight('bold');
+      lg.setFrozenRows(1);
+    }
+    lg.getRange(lg.getLastRow() + 1, 1, log.length, FORM_LOG_HEADERS.length).setValues(log);
+  }
+  return { ok: true, id: id, written: written, skipped: skipped };
 }
 
 // ---- "Update data" button: start the GitHub Action ------------------------

@@ -7,16 +7,8 @@ import type { CellValue } from '../types';
 
 type Row = Record<string, CellValue>;
 
-export const LOCAL_URL_KEY = 'cartup.appsScriptUrlLocal';
-export const isAppsScriptUrl = (u: string) => /^https:\/\/script\.google\.com\/(a\/macros\/[\w.-]+|macros)\/s\/[\w-]+\/exec$/.test(u.trim());
-export function localAppsScriptUrl(): string | null {
-  try {
-    const v = JSON.parse(localStorage.getItem(LOCAL_URL_KEY) ?? 'null');
-    return typeof v === 'string' && isAppsScriptUrl(v) ? v.trim() : null;
-  } catch {
-    return null;
-  }
-}
+export { LOCAL_URL_KEY, isAppsScriptUrl, localAppsScriptUrl } from '../services/appsScriptUrl';
+import { localAppsScriptUrl } from '../services/appsScriptUrl';
 
 /** Writes made in this browser that the sheet has not confirmed yet (shown as "saving…/pending sync"). */
 interface Pending {

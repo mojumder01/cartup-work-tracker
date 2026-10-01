@@ -58,6 +58,10 @@ export function Sidebar({ route, onNavigate, sheetTitle }: { route: Route; onNav
       </div>
       <nav className="nav">
         <NavItems route={route} onNavigate={onNavigate} />
+        <a className="nav-item" href="form.html" target="_blank" rel="noopener" title="Task update form (opens in a new tab)">
+          <Icon name="upload" />
+          <span className="label">Task update form ↗</span>
+        </a>
       </nav>
       <div className="sidebar-foot">
         <div>Source: Google Sheets</div>
