@@ -37,7 +37,7 @@ export function ConnectionsCard() {
   };
   const projMissing = data.governance?.projects ? missingHeaders(data.governance.projects.columns, PROJECT_HEADERS) : [];
   const progMissing = data.governance?.progress ? missingHeaders(data.governance.progress.columns, PROGRESS_HEADERS) : [];
-  const [ping, setPing] = useState<{ ok: boolean; sync?: boolean; error?: string } | null>(null);
+  const [ping, setPing] = useState<{ ok: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; account?: string; error?: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const repoUrl = BUILD.repo ? `https://github.com/${BUILD.repo}` : null;
 
@@ -45,7 +45,7 @@ export function ConnectionsCard() {
     if (!url) return;
     fetch(`${url}${url.includes('?') ? '&' : '?'}action=ping`)
       .then((r) => r.json())
-      .then((j) => setPing({ ok: !!j.ok, sync: !!j.sync }))
+      .then((j) => setPing({ ok: !!j.ok, sync: !!j.sync, sheet: j.sheet, sheetError: j.sheetError ?? undefined, account: j.account ?? undefined }))
       .catch(() => setPing({ ok: false, error: 'Not reachable — check the deployment access is “Anyone”.' }));
   }, [url]);
 
@@ -163,7 +163,13 @@ export function ConnectionsCard() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           <Ok ok={url ? (ping ? ping.ok : null) : false}>Web app {url ? (ping ? (ping.ok ? 'reachable' : 'not reachable') : 'checking…') : 'missing'}</Ok>
           <Ok ok={url && ping ? !!ping.sync : false}>Update data button {ping?.sync ? 'ready' : 'needs GitHub token'}</Ok>
+          {ping?.ok && ping.sheet !== undefined && (
+            <Ok ok={!!ping.sheet}>Governance sheet {ping.sheet ? 'writable' : 'NOT accessible'}{ping.account ? ` · runs as ${ping.account}` : ''}</Ok>
+          )}
         </div>
+        {ping?.ok && ping.sheet === false && (
+          <p style={{ color: 'var(--bad)', fontSize: 13, marginTop: 0 }}>{ping.sheetError}</p>
+        )}
         <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13.5 }}>
           <li>
             Open Apps Script: in the <b>Governance</b> Google Sheet → <b>Extensions → Apps Script</b>.
