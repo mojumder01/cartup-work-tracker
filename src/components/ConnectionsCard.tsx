@@ -50,6 +50,9 @@ export function ConnectionsCard() {
       .catch((e) => setPing({ ok: false, error: (e as Error).message || 'Not reachable — check the deployment access is “Anyone”.' }));
   }, [url]);
 
+  const perfWarning = data.warnings.find((w) => w.startsWith('Performance sheet could not be read')) ?? null;
+  const usedPerf = ['daily performance', 'monthly performance', 'kpi', 'team', 'import - contentcommercial work', 'import - retail picks upload'];
+  const otherPerfTabs = (data.performance?.tabs ?? []).filter((t) => !usedPerf.some((u) => t.trim().toLowerCase() === u || t.trim().toLowerCase().startsWith(u)));
   const has = (tabs: string[] | undefined, name: string) => !!tabs?.some((t) => t.toLowerCase().startsWith(name.toLowerCase()));
   const sheets = [
     {
@@ -143,8 +146,20 @@ export function ConnectionsCard() {
               )}
               {i === 2 && !s.connected && (
                 <p className="muted" style={{ fontSize: 12.5 }}>
-                  To connect: share the Catalogue Overall Performance sheet with the service-account email (Viewer), then in GitHub add the variable{' '}
-                  <code>PERFORMANCE_SHEET_ID</code> (Settings → Secrets and variables → Actions → Variables) with the sheet's ID or URL, and click <b>Update data</b>.
+                  {perfWarning ? (
+                    <>
+                      <span style={{ color: 'var(--bad)' }}>{perfWarning}</span>
+                      <br />
+                    </>
+                  ) : null}
+                  To connect: open the Catalogue Overall Performance sheet → <b>Share</b> → add the service-account email (the <code>client_email</code> in your
+                  Google key, ending in <code>.iam.gserviceaccount.com</code>) as <b>Viewer</b>, untick “Notify people”, then click <b>Update data</b>. The
+                  dashboard only reads this sheet; it never changes it.
+                </p>
+              )}
+              {i === 2 && s.connected && otherPerfTabs.length > 0 && (
+                <p className="muted" style={{ fontSize: 12.5 }}>
+                  Other tabs in this sheet (not used yet — tell us which report they should match): {otherPerfTabs.join(', ')}
                 </p>
               )}
             </div>
