@@ -19,7 +19,13 @@ async function call<T>(url: string, init?: RequestInit): Promise<T> {
   } catch {
     throw new GovernanceApiError('Could not reach the Governance sheet service. Check your connection and try again.');
   }
-  if (!res.ok) throw new GovernanceApiError(`The Governance sheet service returned HTTP ${res.status}.`);
+  if (!res.ok) {
+    throw new GovernanceApiError(
+      res.status === 404
+        ? 'The Governance sheet service returned HTTP 404: there is no Web app at this URL (deployment deleted, or not the /exec URL from Deploy → Manage deployments). See Settings → Connections.'
+        : `The Governance sheet service returned HTTP ${res.status}.`,
+    );
+  }
   let json: { ok?: boolean; error?: string } & T;
   try {
     json = await readAppsScriptJson<{ ok?: boolean; error?: string } & T>(res);

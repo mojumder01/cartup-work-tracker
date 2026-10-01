@@ -21,7 +21,8 @@ export function ConnectionsCard() {
   const { data } = useApp();
   const sharedUrl = data.appsScriptUrl || data.governance?.writeUrl || null;
   const localUrl = localAppsScriptUrl();
-  const url = sharedUrl || localUrl;
+  // A URL saved in this browser wins, so a new deployment can be tested before the GitHub variable is changed.
+  const url = localUrl || sharedUrl;
   const [draftUrl, setDraftUrl] = useState(localUrl ?? '');
   const saveLocal = (v: string | null) => {
     try {
@@ -45,7 +46,16 @@ export function ConnectionsCard() {
   useEffect(() => {
     if (!url) return;
     fetch(`${url}${url.includes('?') ? '&' : '?'}action=ping`)
-      .then((r) => readAppsScriptJson<{ ok?: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; account?: string }>(r))
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error(
+            r.status === 404
+              ? 'HTTP 404 — Google has no Web app at this URL. The deployment was deleted/archived or the URL is not the one from Deploy → Manage deployments (it must end in /exec and must not contain /u/0/ or /dev). Copy the Web app URL again from Manage deployments.'
+              : `HTTP ${r.status} from the Web app. Check Deploy → Manage deployments: Execute as Me, Who has access Anyone.`,
+          );
+        }
+        return readAppsScriptJson<{ ok?: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; account?: string }>(r);
+      })
       .then((j) => setPing({ ok: !!j.ok, sync: !!j.sync, sheet: j.sheet, sheetError: j.sheetError ?? undefined, account: j.account ?? undefined }))
       .catch((e) => setPing({ ok: false, error: (e as Error).message || 'Not reachable — check the deployment access is “Anyone”.' }));
   }, [url]);
@@ -234,7 +244,12 @@ export function ConnectionsCard() {
                 )}
               </div>
               {draftUrl && !isAppsScriptUrl(draftUrl) && <span style={{ color: 'var(--bad)', fontSize: 12 }}>It should look like https://script.google.com/macros/s/…/exec</span>}
-              {localUrl && !sharedUrl && <span className="muted" style={{ fontSize: 12 }}>Using the URL saved in this browser.</span>}
+              {url && (
+                <span className="muted" style={{ fontSize: 12 }}>
+                  In use: <code>{url.replace(/(\/s\/.{6}).+(.{6}\/exec)$/, '$1…$2')}</code> — {localUrl ? 'saved in this browser' : 'from the GitHub variable GOVERNANCE_APPS_SCRIPT_URL'}
+                  {localUrl && sharedUrl && localUrl !== sharedUrl ? ' (differs from the GitHub variable — update the variable when this one works)' : ''}
+                </span>
+              )}
             </div>
           </li>
           <li>

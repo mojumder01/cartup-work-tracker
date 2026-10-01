@@ -30,8 +30,8 @@ const EMPTY: Pending = { projects: [], updates: [], logs: [], deletedLogs: [] };
 function useGovernanceState() {
   const { data } = useApp();
   const gov = data.governance ?? null;
-  // A Web app URL saved in Settings → Connections (this browser only) works before the GitHub variable is set.
-  const writeUrl = gov?.writeUrl || localAppsScriptUrl() || null;
+  // A Web app URL saved in Settings → Connections (this browser only) wins over the GitHub variable, so a new deployment can be tested.
+  const writeUrl = localAppsScriptUrl() || gov?.writeUrl || null;
   const adhoc = useMemo(() => parseAdhoc(gov?.adhoc), [gov]);
 
   const [live, setLive] = useState<{ projects: Row[]; progress: Row[]; at: number } | null>(null);
