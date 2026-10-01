@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import codeGs from '../../apps-script/Code.gs?raw';
 import { useApp } from '../hooks/AppContext';
+import { readAppsScriptJson } from '../services/appsScriptResponse';
 import { isAppsScriptUrl, LOCAL_URL_KEY, localAppsScriptUrl } from '../hooks/useGovernance';
 import { PROGRESS_HEADERS, PROJECT_HEADERS } from '../config/governance.config';
 import { BUILD } from '../utils/buildInfo';
@@ -44,9 +45,9 @@ export function ConnectionsCard() {
   useEffect(() => {
     if (!url) return;
     fetch(`${url}${url.includes('?') ? '&' : '?'}action=ping`)
-      .then((r) => r.json())
+      .then((r) => readAppsScriptJson<{ ok?: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; account?: string }>(r))
       .then((j) => setPing({ ok: !!j.ok, sync: !!j.sync, sheet: j.sheet, sheetError: j.sheetError ?? undefined, account: j.account ?? undefined }))
-      .catch(() => setPing({ ok: false, error: 'Not reachable — check the deployment access is “Anyone”.' }));
+      .catch((e) => setPing({ ok: false, error: (e as Error).message || 'Not reachable — check the deployment access is “Anyone”.' }));
   }, [url]);
 
   const has = (tabs: string[] | undefined, name: string) => !!tabs?.some((t) => t.toLowerCase().startsWith(name.toLowerCase()));
@@ -167,6 +168,7 @@ export function ConnectionsCard() {
             <Ok ok={!!ping.sheet}>Governance sheet {ping.sheet ? 'writable' : 'NOT accessible'}{ping.account ? ` · runs as ${ping.account}` : ''}</Ok>
           )}
         </div>
+        {ping && !ping.ok && ping.error && <p style={{ color: 'var(--bad)', fontSize: 13, marginTop: 0 }}>{ping.error}</p>}
         {ping?.ok && ping.sheet === false && (
           <p style={{ color: 'var(--bad)', fontSize: 13, marginTop: 0 }}>{ping.sheetError}</p>
         )}
