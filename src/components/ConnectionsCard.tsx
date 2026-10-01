@@ -39,7 +39,7 @@ export function ConnectionsCard() {
   };
   const projMissing = data.governance?.projects ? missingHeaders(data.governance.projects.columns, PROJECT_HEADERS) : [];
   const progMissing = data.governance?.progress ? missingHeaders(data.governance.progress.columns, PROGRESS_HEADERS) : [];
-  const [ping, setPing] = useState<{ ok: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; account?: string; error?: string } | null>(null);
+  const [ping, setPing] = useState<{ ok: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; account?: string; error?: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const repoUrl = BUILD.repo ? `https://github.com/${BUILD.repo}` : null;
 
@@ -54,9 +54,9 @@ export function ConnectionsCard() {
               : `HTTP ${r.status} from the Web app. Check Deploy → Manage deployments: Execute as Me, Who has access Anyone.`,
           );
         }
-        return readAppsScriptJson<{ ok?: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; account?: string }>(r);
+        return readAppsScriptJson<{ ok?: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; account?: string }>(r);
       })
-      .then((j) => setPing({ ok: !!j.ok, sync: !!j.sync, sheet: j.sheet, sheetError: j.sheetError ?? undefined, account: j.account ?? undefined }))
+      .then((j) => setPing({ ok: !!j.ok, sync: !!j.sync, sheet: j.sheet, sheetError: j.sheetError ?? undefined, work: j.work, workError: j.workError ?? undefined, account: j.account ?? undefined }))
       .catch((e) => setPing({ ok: false, error: (e as Error).message || 'Not reachable — check the deployment access is “Anyone”.' }));
   }, [url]);
 
@@ -194,6 +194,15 @@ export function ConnectionsCard() {
           )}
         </div>
         {ping && !ping.ok && ping.error && <p style={{ color: 'var(--bad)', fontSize: 13, marginTop: 0 }}>{ping.error}</p>}
+        {ping?.ok && ping.work !== undefined && (
+          <p style={{ fontSize: 13, marginTop: 0 }}>
+            <Ok ok={!!ping.work}>Task update form {ping.work ? 'can write to the Work Sheet' : 'cannot write to the Work Sheet'}</Ok>{' '}
+            <a href="form.html" target="_blank" rel="noopener">
+              Open the form ↗
+            </a>
+            {!ping.work && ping.workError && <span style={{ color: 'var(--bad)', display: 'block', marginTop: 4 }}>{ping.workError}</span>}
+          </p>
+        )}
         {ping?.ok && ping.sheet === false && (
           <p style={{ color: 'var(--bad)', fontSize: 13, marginTop: 0 }}>{ping.sheetError}</p>
         )}

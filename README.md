@@ -143,6 +143,21 @@ Work that is assigned but still **Running / Pending** (or Rejected) is **not** c
 - **Not counted**: assigned work that was not counted, and why.
 - **Governance Ad-Hoc / REVAMP progress**: included when the person appears there.
 
+## Task update form (for employees)
+
+**URL:** `https://<user>.github.io/<repo>/form.html` (also in the sidebar as *Task update form ↗*). Add `?job=CCWT10000` to open a JOB ID directly.
+
+1. The employee picks their name and enters a **JOB ID**, then clicks **Check**. The form reads that row live from the **Work Sheet** and shows the shop, task type, Number of SKU, current status and uploader. A JOB ID that is not in the Work Sheet cannot be submitted.
+2. They update **Status**, **Uploaded SKU Count**, **Upload date**, **Upload Month** and **Comments**, then click **Save to Work Sheet**.
+   - Status "Done" needs an Upload date and Uploaded SKU Count, and dates cannot be in the future.
+   - The form warns when Uploaded SKU Count is more than Number of SKU.
+3. The Apps Script writes **only those columns** into that JOB ID's row.
+   - A column calculated by a formula (e.g. Upload Month) is left alone.
+   - "Uploaded by" is filled with the employee's name only when it is empty.
+   - Every change is added to a **Form Log** tab in the main sheet: time, JOB ID, who, field, old value → new value.
+
+**One-time setup:** share the main *Cartup Content Work Tracker* sheet with the Apps Script's Google account as **Editor**, paste the latest `apps-script/Code.gs`, and deploy a new version. Settings → Connections shows "Task update form can write to the Work Sheet" when it is ready. The dashboard numbers include the changes after the next **Update data**.
+
 ## Individual Summary report
 
 **Reports → Individual Summary** builds the Cartup "Individual Summary — Week 37 vs Week 38" slide from live data. It opens on the last completed week vs the week before, so a report is **one click → PDF / Print** (choose "Save as PDF", or it prints on one 16:9 page).

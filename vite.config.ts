@@ -38,6 +38,8 @@ export default defineConfig({
     outDir: 'dist',
     chunkSizeWarningLimit: 900,
     rollupOptions: {
+      // Two pages: the dashboard and the lightweight task update form.
+      input: { main: 'index.html', form: 'form.html' },
       output: {
         manualChunks: {
           charts: ['recharts'],
