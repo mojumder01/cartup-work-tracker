@@ -167,7 +167,7 @@ function MonthlyPerformance() {
 }
 
 function DataExports() {
-  const { dataset, searched, filtered, data, kpi } = useApp();
+  const { dataset, searched, filtered, roleRecords, data, kpi } = useApp();
   const [visible] = useVisibleColumns(dataset);
   const [scope, setScope] = useState<'visible' | 'all'>('visible');
   const [busy, setBusy] = useState(false);
@@ -181,7 +181,7 @@ function DataExports() {
       name: `${role} summary`,
       build: (): [string[], ExportRow[]] => [
         [role, 'Jobs', 'Number of SKU', 'Uploaded SKU', 'Rejected SKU', 'Approved QC', 'Rejected QC', 'Image count', 'Edited (By Hand)', 'Edited (By AI)'],
-        personTable(filtered, role).map((p) => [p.name, p.jobs, p.sku, p.uploadedSku, p.rejectedSku, p.approvedQc, p.rejectedQc, p.images, p.manual, p.ai]),
+        personTable(roleRecords(role), role).map((p) => [p.name, p.jobs, p.sku, p.uploadedSku, p.rejectedSku, p.approvedQc, p.rejectedQc, p.images, p.manual, p.ai]),
       ],
     })),
   ];

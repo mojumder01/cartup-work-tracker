@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import type { Dataset, DashboardData, KpiReport, Route, WorkRecord } from '../types';
 import { buildDataset } from '../utils/dataset';
 import { parseKpiTab } from '../utils/kpiParser';
+import { creditedRecords, creditRule } from '../utils/credit';
 import { applyFilters, emptyFilters, type Drill, type Filters } from '../utils/filters';
 import { useDebounce } from './useDebounce';
 import { useLocalStorage } from './useLocalStorage';
@@ -21,6 +22,8 @@ interface AppState {
   filtered: WorkRecord[];
   /** `filtered` + global search (Work Sheet table & exports). */
   searched: WorkRecord[];
+  /** Finished work for a role column (Uploaded by / QC By / Visual editor), filtered by that role's own date. Other columns → `filtered`. */
+  roleRecords: (column: string) => WorkRecord[];
   navigate: (r: Route) => void;
   person: string;
   setPerson: (name: string) => void;
@@ -68,6 +71,25 @@ export function AppProvider({ data, navigate, children }: { data: DashboardData;
     [filtered, search],
   );
 
+  /**
+   * Finished work per role, with the current filters applied to the role's own date
+   * (e.g. Upload date). Every per-person number uses this, so all pages agree.
+   */
+  const roleRecords = useMemo(() => {
+    const cache = new Map<string, WorkRecord[]>();
+    return (column: string): WorkRecord[] => {
+      const rule = creditRule(column);
+      if (!rule) return filtered;
+      let hit = cache.get(rule.column);
+      if (!hit) {
+        hit = creditedRecords(dataset, applyFilters(dataset.records, filters, { ignoreSearch: true, dateColumn: rule.date }), rule);
+        cache.set(rule.column, hit);
+      }
+      return hit;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataset, filtered]);
+
   const setDim = useCallback((column: string, value: string) => {
     setFilters((f) => ({ ...f, dims: { ...f.dims, [column]: value } }));
   }, []);
@@ -89,7 +111,7 @@ export function AppProvider({ data, navigate, children }: { data: DashboardData;
 
   const value: AppState = {
     data, dataset, kpi, target, filters, setFilters, setDim, setDrill, resetFilters,
-    filtered, searched, navigate, person, setPerson, openPerson,
+    filtered, searched, roleRecords, navigate, person, setPerson, openPerson,
     roster, rosterOverrides, setRosterOverride, clearRosterOverrides,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

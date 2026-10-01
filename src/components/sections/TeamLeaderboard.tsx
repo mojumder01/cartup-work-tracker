@@ -2,6 +2,7 @@ import { memo, useMemo, useState } from 'react';
 import { dashboardConfig, C } from '../../config/dashboard.config';
 import { useApp } from '../../hooks/AppContext';
 import { personTable, type PersonRow } from '../../utils/aggregate';
+import { creditRule } from '../../utils/credit';
 import { fmtNum, fmtPct } from '../../utils/format';
 import { Card, EmptyState, Segmented } from '../ui';
 
@@ -35,11 +36,11 @@ const DEFAULT_COLS: Col[] = [
 ];
 
 export const TeamLeaderboard = memo(function TeamLeaderboard({ limit = 12 }: { limit?: number }) {
-  const { dataset, filtered, openPerson } = useApp();
+  const { dataset, roleRecords, openPerson } = useApp();
   const roles = dashboardConfig.personColumns.filter((c) => dataset.has(c));
   const [role, setRole] = useState(roles[0] ?? '');
   const [all, setAll] = useState(false);
-  const rows = useMemo(() => (role ? personTable(filtered, role) : []), [filtered, role]);
+  const rows = useMemo(() => (role ? personTable(roleRecords(role), role) : []), [roleRecords, role]);
   const cols = ROLE_COLUMNS[role] ?? DEFAULT_COLS;
   if (!roles.length) {
     return (
@@ -53,7 +54,7 @@ export const TeamLeaderboard = memo(function TeamLeaderboard({ limit = 12 }: { l
   return (
     <Card
       title="Team Performance"
-      subtitle="Per person, by role · click a name for the full profile"
+      subtitle={creditRule(role) ? `Finished work only (${creditRule(role)!.status}: ${creditRule(role)!.done.join(' / ')}), dated by ${creditRule(role)!.date} · click a name` : 'Per person · click a name for the full profile'}
       actions={<Segmented label="Role" value={role} onChange={setRole} options={roles.map((r) => ({ id: r, label: r }))} />}
       bodyClassName=""
     >

@@ -7,7 +7,10 @@ import { buildIndividualReport, parseSellerQc, type IndividualReport } from '../
 import { comparisonPeriod, comparisonTitle, listPeriods, periodContaining, periodKey, type CompareMode, type Period, type PeriodType } from '../../utils/periods';
 import { activeDuring, findPerson } from '../../utils/roster';
 import { text } from '../../utils/parse';
-import { exportXlsx, stamp, type ExportRow } from '../../utils/export';
+import { exportXlsx, exportXlsxSheets, stamp, type ExportRow } from '../../utils/export';
+import { buildEmployeeDetail } from '../../utils/employeeDetail';
+import { checkCredit, creditRule } from '../../utils/credit';
+import { useGovernance } from '../../hooks/useGovernance';
 import { Card, Segmented } from '../ui';
 import { Icon } from '../Icon';
 import { ReportSlide, type Highlight } from './ReportSlide';
@@ -76,7 +79,8 @@ export function useFitScale(ref: React.RefObject<HTMLDivElement | null>, width =
 }
 
 export function ReportBuilder() {
-  const { dataset, data, roster, navigate } = useApp();
+  const { dataset, data, roster, kpi, navigate } = useApp();
+  const gov = useGovernance();
   const [settings, setSettings] = useLocalStorage<Settings>('cartup.reportSettings', DEFAULT_SETTINGS);
   const s = { ...DEFAULT_SETTINGS, ...settings };
   const update = (patch: Partial<Settings>) => setSettings({ ...s, ...patch });
@@ -120,6 +124,8 @@ export function ReportBuilder() {
         for (const r of dataset.records) {
           const ms = r.dates[dateCol];
           if (ms == null || !((ms >= prev.start && ms < prev.end) || (ms >= cur.start && ms < cur.end))) continue;
+          const rule = creditRule(role);
+          if (rule && !checkCredit(dataset, r, rule).counted) continue;
           const n = text(r.values[role]);
           if (n) jobs.set(n, (jobs.get(n) ?? 0) + 1);
         }
@@ -193,6 +199,29 @@ export function ReportBuilder() {
     update({ people: next });
   };
 
+  const [detailPerson, setDetailPerson] = useState('');
+  const [detailBusy, setDetailBusy] = useState(false);
+  const detailChoices = useMemo(() => {
+    const m = new Map<string, string>();
+    Object.values(candidates).flat().forEach((c) => m.set(c.name.toLowerCase(), c.name));
+    roster.forEach((p) => !m.has(p.name.toLowerCase()) && m.set(p.name.toLowerCase(), p.name));
+    return [...m.values()].sort((a, b) => a.localeCompare(b));
+  }, [candidates, roster]);
+  const downloadDetail = async () => {
+    if (!detailPerson) return;
+    setDetailBusy(true);
+    try {
+      const sheets = buildEmployeeDetail({
+        name: detailPerson, ds: dataset, sellerQc, roster, kpi, prev, cur,
+        adhoc: gov.adhoc?.tasks, projects: gov.projects, logs: gov.logs,
+      });
+      const safe = detailPerson.replace(/[^\w-]+/g, '-');
+      await exportXlsxSheets(`employee-detail-${safe}-${prev.short}-vs-${cur.short}-${stamp()}.xlsx`.replace(/\s+/g, '-'), sheets);
+    } finally {
+      setDetailBusy(false);
+    }
+  };
+
   const downloadExcel = async () => {
     const rows: ExportRow[] = [[title], [summary], []];
     for (const sec of report.sections) {
@@ -255,6 +284,26 @@ export function ReportBuilder() {
             <span className="muted" style={{ fontSize: 12 }}>
               {prev.label} ({prev.range}) → {cur.label} ({cur.range})
             </span>
+          </div>
+
+          <div className="rb-group">
+            <span className="rb-label">Employee detail report</span>
+            <span className="muted" style={{ fontSize: 12.5 }}>
+              One person, these two periods: the summary numbers plus every sheet row they were added up from, and assigned work that was not counted (with the reason).
+            </span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select className="select" value={detailPerson} onChange={(e) => setDetailPerson(e.target.value)} aria-label="Employee for the detail report">
+                <option value="">— Choose an employee —</option>
+                {detailChoices.map((n) => (
+                  <option key={n} value={n}>
+                    {findPerson(roster, n)?.fullName && findPerson(roster, n)!.fullName !== n ? `${findPerson(roster, n)!.fullName} (${n})` : n}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="btn btn-sm" disabled={!detailPerson || detailBusy} onClick={downloadDetail}>
+                <Icon name="download" size={14} /> {detailBusy ? 'Building…' : 'Excel'}
+              </button>
+            </div>
           </div>
 
           <div className="rb-group">

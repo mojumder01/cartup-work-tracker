@@ -40,3 +40,26 @@ export async function exportXlsx(fileName: string, sheetName: string, headers: s
 }
 
 export const stamp = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+
+/** .xlsx with several sheets; each sheet's first row is bold. */
+export async function exportXlsxSheets(fileName: string, sheets: { name: string; rows: ExportRow[] }[]) {
+  const { default: writeXlsxFile } = await import('write-excel-file');
+  const used = new Set<string>();
+  const names = sheets.map((s) => {
+    let n = s.name.replace(/[\\/?*[\]:]/g, ' ').slice(0, 31) || 'Sheet';
+    while (used.has(n)) n = `${n.slice(0, 28)} ${used.size}`;
+    used.add(n);
+    return n;
+  });
+  const data = sheets.map((s) => {
+    const width = Math.max(1, ...s.rows.map((r) => r.length));
+    return s.rows.map((r, i) =>
+      Array.from({ length: width }, (_, j) => {
+        const v = r[j];
+        if (v === null || v === undefined || v === '') return null;
+        return { value: typeof v === 'boolean' ? String(v) : v, ...(i === 0 ? { fontWeight: 'bold' as const } : {}) };
+      }),
+    );
+  });
+  await writeXlsxFile(data as never, { fileName, sheets: names } as never);
+}

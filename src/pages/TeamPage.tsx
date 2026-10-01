@@ -4,6 +4,7 @@ import { useApp } from '../hooks/AppContext';
 import { distinct, personTable, type PersonRow } from '../utils/aggregate';
 import { fmtNum, fmtPct, fmtSigned, NA } from '../utils/format';
 import { text } from '../utils/parse';
+import { checkCredit, creditRule } from '../utils/credit';
 import { AchievementBadge, Card, EmptyState, Meter, Stat } from '../components/ui';
 import { TeamLeaderboard } from '../components/sections/TeamLeaderboard';
 import { WorkTable } from '../components/WorkTable';
@@ -30,6 +31,7 @@ const ROLE_STATS: Record<string, (p: PersonRow) => { label: string; value: strin
     { label: 'AI edited', value: fmtNum(p.ai) },
   ],
 };
+const EMPTY_ROW = (name: string): PersonRow => ({ name, jobs: 0, sku: 0, uploadedSku: 0, rejectedSku: 0, approvedQc: 0, rejectedQc: 0, images: 0, ai: 0, manual: 0 });
 const DEFAULT_STATS = (p: PersonRow) => [
   { label: 'Jobs', value: fmtNum(p.jobs) },
   { label: 'SKU', value: fmtNum(p.sku) },
@@ -58,7 +60,7 @@ function KpiLine({ section, m }: { section: string; m: KpiMetric }) {
 }
 
 export default function TeamPage() {
-  const { dataset, filtered, kpi, person, setPerson, roster } = useApp();
+  const { dataset, filtered, roleRecords, kpi, person, setPerson, roster } = useApp();
   const leftSet = useMemo(() => new Set(roster.filter((p) => p.status === 'Left').map((p) => p.name.toLowerCase())), [roster]);
   const roles = dashboardConfig.personColumns.filter((c) => dataset.has(c));
 
@@ -77,9 +79,15 @@ export default function TeamPage() {
   const roleRows = useMemo(
     () =>
       roles
-        .map((role) => ({ role, row: personTable(personRecords, role).find((p) => p.name.toLowerCase() === key) }))
-        .filter((x): x is { role: string; row: PersonRow } => !!x.row),
-    [personRecords, roles, key],
+        .map((role) => {
+          const mine = roleRecords(role).filter((r) => text(r.values[role]).toLowerCase() === key);
+          const assigned = filtered.filter((r) => text(r.values[role]).toLowerCase() === key);
+          const rule = creditRule(role);
+          const open = rule ? assigned.filter((r) => !checkCredit(dataset, r, rule).counted).length : 0;
+          return { role, row: personTable(mine, role).find((p) => p.name.toLowerCase() === key), open };
+        })
+        .filter((x): x is { role: string; row: PersonRow; open: number } => !!x.row || x.open > 0),
+    [roleRecords, filtered, dataset, roles, key],
   );
   const kpiLines = useMemo(
     () =>
@@ -141,15 +149,27 @@ export default function TeamPage() {
       ) : (
         <>
           <div className="grid grid-2">
-            {roleRows.map(({ role, row }) => (
-              <Card key={role} title={`As ${role}`} subtitle="Current filters applied">
-                <div className="stats">
-                  {(ROLE_STATS[role] ?? DEFAULT_STATS)(row).map((s) => (
-                    <Stat key={s.label} label={s.label} value={s.value} />
-                  ))}
-                </div>
-              </Card>
-            ))}
+            {roleRows.map(({ role, row, open }) => {
+              const rule = creditRule(role);
+              return (
+                <Card
+                  key={role}
+                  title={`As ${role}`}
+                  subtitle={rule ? `Finished work (${rule.status}: ${rule.done.join(' / ')}) by ${rule.date} · current filters` : 'Current filters applied'}
+                >
+                  <div className="stats">
+                    {(ROLE_STATS[role] ?? DEFAULT_STATS)(row ?? EMPTY_ROW(person)).map((s) => (
+                      <Stat key={s.label} label={s.label} value={s.value} />
+                    ))}
+                  </div>
+                  {open > 0 && (
+                    <div className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>
+                      + {fmtNum(open)} assigned row(s) not counted yet (running, pending, rejected or no {rule?.date}).
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
             <Card title="KPI · Target · Achievement" subtitle={kpi ? `From “${kpi.sheet}” · ${kpiPeriodText(kpi)}` : 'KPI tab unavailable'}>
               {kpiLines.length ? (
                 kpiLines.map(({ section, m }) => <KpiLine key={`${section}-${m.id}`} section={section} m={m} />)
@@ -162,7 +182,7 @@ export default function TeamPage() {
               )}
             </Card>
           </div>
-          <Card title={`${person}’s work records`} subtitle="Rows where this person is uploader, QC, visual editor, KAM or vertical head" bodyClassName="">
+          <Card title={`${person}’s work records`} subtitle="Every row assigned to this person (uploader, QC, visual editor, KAM or vertical head) — including work that is not finished and therefore not counted above" bodyClassName="">
             {personRecords.length ? <WorkTable dataset={dataset} records={personRecords} /> : <EmptyState />}
           </Card>
         </>
