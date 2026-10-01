@@ -1,16 +1,22 @@
 /**
  * Cartup Governance — REVAMP project assign API.
  *
- * Paste this file into the Governance spreadsheet:
- *   Extensions → Apps Script → replace Code.gs → Save.
- * Then run `setup` once (authorise when asked) and deploy:
+ * Works in two ways (pick one):
+ *  A) From the Governance sheet: Extensions → Apps Script.
+ *  B) If that shows "Sorry, unable to open the file at this time" (happens when
+ *     several Google accounts are signed in): open https://script.google.com
+ *     with ONLY the sheet owner's account (e.g. an Incognito window) →
+ *     New project. The script opens the sheet by its ID, so it works the same.
+ * Replace Code.gs with this file → Save → run `setup` once (authorise) →
  *   Deploy → New deployment → type "Web app" →
  *   Execute as: Me · Who has access: Anyone → Deploy → copy the Web app URL.
  * Put that URL in GitHub: Settings → Secrets and variables → Actions →
  *   Variables → New repository variable GOVERNANCE_APPS_SCRIPT_URL.
  *
- * The script only touches two tabs it creates itself: "Projects" and
- * "Project Progress". The "Main" Ad-Hoc tab is never modified.
+ * The script only writes to the "Projects" and "Project Progress" tabs. If you
+ * created them yourself, `setup` adds any missing header cells to row 1 and
+ * keeps your columns; columns are always matched by header name, so you may
+ * re-order them or add your own. The "Main" Ad-Hoc tab is never modified.
  *
  * Optional — "Update data" button on the dashboard:
  *   Project Settings (gear) → Script Properties → add
@@ -20,32 +26,93 @@
  *   The token stays inside Google; the browser never sees it.
  */
 
+var SPREADSHEET_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
 var PROJECTS_TAB = 'Projects';
 var PROGRESS_TAB = 'Project Progress';
 var PROJECT_HEADERS = ['Project ID', 'Created At', 'Project Name', 'Work Type', 'Description', 'POC', 'Assignees',
-  'Total SKUs', 'Start Date', 'Due Date', 'Status', 'Priority', 'Found Label', 'Updated At', 'Updated By'];
-var PROGRESS_HEADERS = ['Log ID', 'Timestamp', 'Project ID', 'Date', 'Person', 'Reviewed', 'Found', 'Updated', 'Note'];
+  'Total SKUs', 'Start Date', 'Due Date', 'Status', 'Priority', 'Found Label', 'Updated At', 'Updated By',
+  'Report Layout', 'Line Header', 'Lines', 'Value Mode', 'Report Note', 'Show In Report'];
+var PROGRESS_HEADERS = ['Log ID', 'Timestamp', 'Project ID', 'Date', 'Person', 'Reviewed', 'Found', 'Updated', 'Note', 'Line'];
 var STATUSES = ['Planned', 'In Progress', 'On Hold', 'Completed', 'Cancelled'];
 var PRIORITIES = ['High', 'Medium', 'Low'];
+var LAYOUTS = ['Reviewed / Found / Updated', 'Working / Updated', 'Count', 'Status breakdown'];
+var MODES = ['Sum', 'Latest'];
 var EDITABLE = ['Project Name', 'Work Type', 'Description', 'POC', 'Assignees', 'Total SKUs', 'Start Date', 'Due Date',
-  'Status', 'Priority', 'Found Label'];
+  'Status', 'Priority', 'Found Label', 'Report Layout', 'Line Header', 'Lines', 'Value Mode', 'Report Note', 'Show In Report'];
 
-/** Run once from the editor: creates the two tabs with headers. */
+/** Run once from the editor: creates the tabs or completes their header row. */
 function setup() {
-  sheet_(PROJECTS_TAB, PROJECT_HEADERS);
-  sheet_(PROGRESS_TAB, PROGRESS_HEADERS);
-  return 'Ready';
+  var a = sheet_(PROJECTS_TAB, PROJECT_HEADERS);
+  var b = sheet_(PROGRESS_TAB, PROGRESS_HEADERS);
+  return 'Ready: ' + PROJECTS_TAB + ' (' + a.getLastColumn() + ' columns), ' + PROGRESS_TAB + ' (' + b.getLastColumn() + ' columns)';
 }
 
+function ss_() {
+  try {
+    return SpreadsheetApp.openById(SPREADSHEET_ID);
+  } catch (e) {
+    var active = SpreadsheetApp.getActiveSpreadsheet();
+    if (active) return active;
+    throw e;
+  }
+}
+
+/** The tab, created if missing; any missing header cells are added to row 1. */
 function sheet_(name, headers) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = ss_();
   var sh = ss.getSheetByName(name);
   if (!sh) {
-    sh = ss.insertSheet(name);
-    sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
-    sh.setFrozenRows(1);
+    // Tolerate small differences such as extra spaces or a different case.
+    var want = name.toLowerCase().replace(/\s+/g, ' ').trim();
+    sh = ss.getSheets().filter(function (x) { return x.getName().toLowerCase().replace(/\s+/g, ' ').trim() === want; })[0] || null;
+  }
+  if (!sh) sh = ss.insertSheet(name);
+  var lastCol = Math.max(sh.getLastColumn(), 1);
+  var row1 = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) { return String(h).trim(); });
+  var have = row1.map(function (h) { return h.toLowerCase(); });
+  var missing = headers.filter(function (h) { return have.indexOf(h.toLowerCase()) < 0; });
+  if (missing.length) {
+    var used = row1.filter(function (h) { return h !== ''; }).length;
+    // Empty header row → write from column A; otherwise append after the last header.
+    var at = used === 0 ? 1 : lastCol + 1;
+    sh.getRange(1, at, 1, missing.length).setValues([missing]).setFontWeight('bold');
+    if (sh.getFrozenRows() === 0) sh.setFrozenRows(1);
   }
   return sh;
+}
+
+/** { 'Header Name': columnIndex (0-based) } using the sheet's real row 1. */
+function headerMap_(sh) {
+  var row1 = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0];
+  var m = {};
+  row1.forEach(function (h, i) {
+    var k = String(h).trim();
+    if (k && m[k] === undefined) m[k] = i;
+  });
+  // Case-insensitive fallback for the names the script uses.
+  PROJECT_HEADERS.concat(PROGRESS_HEADERS).forEach(function (h) {
+    if (m[h] !== undefined) return;
+    row1.forEach(function (x, i) { if (m[h] === undefined && String(x).trim().toLowerCase() === h.toLowerCase()) m[h] = i; });
+  });
+  m._width = row1.length;
+  return m;
+}
+
+/** Writes object values into a row array at the columns named by the header map. */
+function toRow_(map, obj, base) {
+  var row = base ? base.slice() : [];
+  while (row.length < map._width) row.push('');
+  Object.keys(obj).forEach(function (k) { if (map[k] !== undefined) row[map[k]] = obj[k]; });
+  return row;
+}
+
+/** Row number (1-based) whose column `header` equals `value`, or -1. */
+function findRow_(sh, map, header, value) {
+  var last = sh.getLastRow();
+  if (last < 2) return -1;
+  var col = sh.getRange(2, map[header] + 1, last - 1, 1).getValues();
+  for (var i = 0; i < col.length; i++) if (String(col[i][0]) === value) return i + 2;
+  return -1;
 }
 
 function json_(obj) {
@@ -56,16 +123,19 @@ function json_(obj) {
 function readTab_(name, headers) {
   var sh = sheet_(name, headers);
   var values = sh.getDataRange().getValues();
-  var head = values.shift() || [];
+  var head = (values.shift() || []).map(function (h) { return String(h).trim(); });
+  var idCol = head.map(function (h) { return h.toLowerCase(); }).indexOf(headers[0].toLowerCase());
   var tz = Session.getScriptTimeZone();
-  return values.filter(function (r) { return r[0] !== ''; }).map(function (r) {
+  return values.filter(function (r) { return idCol < 0 || r[idCol] !== ''; }).map(function (r) {
     var o = {};
     head.forEach(function (h, i) {
+      if (!h) return;
+      var canon = headers.filter(function (x) { return x.toLowerCase() === h.toLowerCase(); })[0] || h;
       var v = r[i];
       if (v instanceof Date) {
-        v = /At$|Timestamp/.test(h) ? Utilities.formatDate(v, tz, "yyyy-MM-dd'T'HH:mm:ss") : Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+        v = /At$|Timestamp/.test(canon) ? Utilities.formatDate(v, tz, "yyyy-MM-dd'T'HH:mm:ss") : Utilities.formatDate(v, tz, 'yyyy-MM-dd');
       }
-      o[h] = v === '' ? null : v;
+      o[canon] = v === '' ? null : v;
     });
     return o;
   });
@@ -108,28 +178,63 @@ function id_(v, prefix) {
   return s;
 }
 
-function projectRow_(p, existing) {
-  var row = existing ? existing.slice() : PROJECT_HEADERS.map(function () { return ''; });
-  var set = function (h, v) { row[PROJECT_HEADERS.indexOf(h)] = v; };
-  if (p['Project Name'] !== undefined) set('Project Name', str_(p['Project Name'], 120));
-  if (p['Work Type'] !== undefined) set('Work Type', str_(p['Work Type'], 80));
-  if (p['Description'] !== undefined) set('Description', str_(p['Description'], 1000));
-  if (p['POC'] !== undefined) set('POC', str_(p['POC'], 60));
-  if (p['Assignees'] !== undefined) set('Assignees', str_([].concat(p['Assignees']).join(', '), 500));
-  if (p['Total SKUs'] !== undefined) set('Total SKUs', num_(p['Total SKUs']));
-  if (p['Start Date'] !== undefined) set('Start Date', day_(p['Start Date']));
-  if (p['Due Date'] !== undefined) set('Due Date', day_(p['Due Date']));
-  if (p['Status'] !== undefined) set('Status', oneOf_(p['Status'], STATUSES, 'Planned'));
-  if (p['Priority'] !== undefined) set('Priority', oneOf_(p['Priority'], PRIORITIES, 'Medium'));
-  if (p['Found Label'] !== undefined) set('Found Label', str_(p['Found Label'], 60));
-  return row;
+/** Validated project fields → { header: value } (only the keys present in p). */
+function projectFields_(p) {
+  var o = {};
+  var has = function (k) { return p[k] !== undefined && p[k] !== null; };
+  if (has('Project Name')) o['Project Name'] = str_(p['Project Name'], 120);
+  if (has('Work Type')) o['Work Type'] = str_(p['Work Type'], 80);
+  if (has('Description')) o['Description'] = str_(p['Description'], 1000);
+  if (has('POC')) o['POC'] = str_([].concat(p['POC']).join(', '), 200);
+  if (has('Assignees')) o['Assignees'] = str_([].concat(p['Assignees']).join(', '), 500);
+  if (has('Total SKUs')) o['Total SKUs'] = num_(p['Total SKUs']);
+  if (has('Start Date')) o['Start Date'] = day_(p['Start Date']);
+  if (has('Due Date')) o['Due Date'] = day_(p['Due Date']);
+  if (has('Status')) o['Status'] = oneOf_(p['Status'], STATUSES, 'Planned');
+  if (has('Priority')) o['Priority'] = oneOf_(p['Priority'], PRIORITIES, 'Medium');
+  if (has('Found Label')) o['Found Label'] = str_(p['Found Label'], 60);
+  if (has('Report Layout')) o['Report Layout'] = oneOf_(p['Report Layout'], LAYOUTS, LAYOUTS[0]);
+  if (has('Line Header')) o['Line Header'] = str_(p['Line Header'], 40);
+  if (has('Lines')) o['Lines'] = str_([].concat(p['Lines']).join('; '), 1000);
+  if (has('Value Mode')) o['Value Mode'] = oneOf_(p['Value Mode'], MODES, 'Sum');
+  if (has('Report Note')) o['Report Note'] = str_(p['Report Note'], 1000);
+  if (has('Show In Report')) o['Show In Report'] = p['Show In Report'] === 'No' ? 'No' : 'Yes';
+  return o;
+}
+
+function logFields_(l, now) {
+  return {
+    'Log ID': id_(l['Log ID'], 'LOG'),
+    'Timestamp': now,
+    'Project ID': id_(l['Project ID'], 'PRJ'),
+    'Date': day_(l['Date']) || now.slice(0, 10),
+    'Person': str_(l['Person'], 60),
+    'Reviewed': num_(l['Reviewed']) || 0,
+    'Found': num_(l['Found']) || 0,
+    'Updated': num_(l['Updated']) || 0,
+    'Note': str_(l['Note'], 500),
+    'Line': str_(l['Line'], 80),
+  };
+}
+
+/** Appends progress rows, skipping ids already in the tab. */
+function appendLogs_(list, now) {
+  if (!list.length || list.length > 100) throw new Error('Send 1–100 progress entries');
+  var sh = sheet_(PROGRESS_TAB, PROGRESS_HEADERS);
+  var map = headerMap_(sh);
+  var rows = list.map(function (l) { return logFields_(l || {}, now); });
+  var fresh = rows.filter(function (r) { return findRow_(sh, map, 'Log ID', r['Log ID']) < 0; });
+  if (fresh.length) {
+    sh.getRange(sh.getLastRow() + 1, 1, fresh.length, map._width).setValues(fresh.map(function (r) { return toRow_(map, r, null); }));
+  }
+  return rows.map(function (r) { return r['Log ID']; });
 }
 
 /**
  * POST body (sent as text/plain JSON):
  *   { action: 'createProject', project: {...}, by: 'Name' }
  *   { action: 'updateProject', id: 'PRJ-…', changes: {...}, by: 'Name' }
- *   { action: 'logProgress', log: {...} }
+ *   { action: 'logProgress', log: {...} }  or  { action: 'logProgress', logs: [{...}, …] }
  *   { action: 'deleteLog', id: 'LOG-…' }
  */
 function doPost(e) {
@@ -146,60 +251,48 @@ function doPost(e) {
       var p = body.project || {};
       if (!str_(p['Project Name'])) throw new Error('Project name is required');
       var sh = sheet_(PROJECTS_TAB, PROJECT_HEADERS);
-      var row = projectRow_(p, null);
-      row[0] = id_(p['Project ID'], 'PRJ');
-      row[1] = now;
-      if (!row[PROJECT_HEADERS.indexOf('Status')]) row[PROJECT_HEADERS.indexOf('Status')] = 'Planned';
-      row[PROJECT_HEADERS.indexOf('Updated At')] = now;
-      row[PROJECT_HEADERS.indexOf('Updated By')] = str_(body.by, 60);
-      var ids = sh.getRange(1, 1, sh.getLastRow(), 1).getValues().map(function (r) { return r[0]; });
-      if (ids.indexOf(row[0]) >= 0) return json_({ ok: true, id: row[0], duplicate: true });
-      sh.appendRow(row);
-      return json_({ ok: true, id: row[0] });
+      var map = headerMap_(sh);
+      var id = id_(p['Project ID'], 'PRJ');
+      if (findRow_(sh, map, 'Project ID', id) > 0) return json_({ ok: true, id: id, duplicate: true });
+      var f = projectFields_(p);
+      f['Project ID'] = id;
+      f['Created At'] = now;
+      if (!f['Status']) f['Status'] = 'Planned';
+      if (!f['Show In Report']) f['Show In Report'] = 'Yes';
+      f['Updated At'] = now;
+      f['Updated By'] = str_(body.by, 60);
+      sh.getRange(sh.getLastRow() + 1, 1, 1, map._width).setValues([toRow_(map, f, null)]);
+      return json_({ ok: true, id: id });
     }
 
     if (body.action === 'updateProject') {
-      var id = id_(body.id, 'PRJ');
+      var pid = id_(body.id, 'PRJ');
       var sh2 = sheet_(PROJECTS_TAB, PROJECT_HEADERS);
-      var data = sh2.getDataRange().getValues();
-      for (var i = 1; i < data.length; i++) {
-        if (data[i][0] === id) {
-          var changes = {};
-          EDITABLE.forEach(function (k) { if (body.changes && body.changes[k] !== undefined) changes[k] = body.changes[k]; });
-          var updated = projectRow_(changes, data[i]);
-          updated[PROJECT_HEADERS.indexOf('Updated At')] = now;
-          updated[PROJECT_HEADERS.indexOf('Updated By')] = str_(body.by, 60);
-          sh2.getRange(i + 1, 1, 1, updated.length).setValues([updated]);
-          return json_({ ok: true, id: id });
-        }
-      }
-      throw new Error('Project not found');
+      var map2 = headerMap_(sh2);
+      var r = findRow_(sh2, map2, 'Project ID', pid);
+      if (r < 0) throw new Error('Project not found');
+      var changes = {};
+      EDITABLE.forEach(function (k) { if (body.changes && body.changes[k] !== undefined) changes[k] = body.changes[k]; });
+      var g = projectFields_(changes);
+      g['Updated At'] = now;
+      g['Updated By'] = str_(body.by, 60);
+      var current = sh2.getRange(r, 1, 1, map2._width).getValues()[0];
+      sh2.getRange(r, 1, 1, map2._width).setValues([toRow_(map2, g, current)]);
+      return json_({ ok: true, id: pid });
     }
 
     if (body.action === 'logProgress') {
-      var l = body.log || {};
-      var sh3 = sheet_(PROGRESS_TAB, PROGRESS_HEADERS);
-      var logId = id_(l['Log ID'], 'LOG');
-      var existing = sh3.getRange(1, 1, sh3.getLastRow(), 1).getValues().map(function (r) { return r[0]; });
-      if (existing.indexOf(logId) >= 0) return json_({ ok: true, id: logId, duplicate: true });
-      sh3.appendRow([
-        logId, now, id_(l['Project ID'], 'PRJ'), day_(l['Date']) || now.slice(0, 10), str_(l['Person'], 60),
-        num_(l['Reviewed']) || 0, num_(l['Found']) || 0, num_(l['Updated']) || 0, str_(l['Note'], 500),
-      ]);
-      return json_({ ok: true, id: logId });
+      var ids = appendLogs_(body.logs ? [].concat(body.logs) : [body.log || {}], now);
+      return json_({ ok: true, id: ids[0], ids: ids });
     }
 
     if (body.action === 'deleteLog') {
       var delId = id_(body.id, 'LOG');
       var sh4 = sheet_(PROGRESS_TAB, PROGRESS_HEADERS);
-      var d = sh4.getDataRange().getValues();
-      for (var j = d.length - 1; j >= 1; j--) {
-        if (d[j][0] === delId) {
-          sh4.deleteRow(j + 1);
-          return json_({ ok: true, id: delId });
-        }
-      }
-      throw new Error('Log not found');
+      var row = findRow_(sh4, headerMap_(sh4), 'Log ID', delId);
+      if (row < 0) throw new Error('Log not found');
+      sh4.deleteRow(row);
+      return json_({ ok: true, id: delId });
     }
 
     throw new Error('Unknown action');

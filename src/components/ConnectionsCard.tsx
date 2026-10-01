@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import codeGs from '../../apps-script/Code.gs?raw';
 import { useApp } from '../hooks/AppContext';
+import { isAppsScriptUrl, LOCAL_URL_KEY, localAppsScriptUrl } from '../hooks/useGovernance';
+import { PROGRESS_HEADERS, PROJECT_HEADERS } from '../config/governance.config';
 import { BUILD } from '../utils/buildInfo';
 import { fmtNum } from '../utils/format';
 import { Card } from './ui';
@@ -16,7 +18,25 @@ const Ok = ({ ok, children }: { ok: boolean | null; children: React.ReactNode })
 /** Which Google Sheets / tabs feed the dashboard, and the one-time Apps Script setup. */
 export function ConnectionsCard() {
   const { data } = useApp();
-  const url = data.appsScriptUrl ?? data.governance?.writeUrl ?? null;
+  const sharedUrl = data.appsScriptUrl || data.governance?.writeUrl || null;
+  const localUrl = localAppsScriptUrl();
+  const url = sharedUrl || localUrl;
+  const [draftUrl, setDraftUrl] = useState(localUrl ?? '');
+  const saveLocal = (v: string | null) => {
+    try {
+      if (v) localStorage.setItem(LOCAL_URL_KEY, JSON.stringify(v.trim()));
+      else localStorage.removeItem(LOCAL_URL_KEY);
+    } catch {
+      /* ignore */
+    }
+    window.location.reload();
+  };
+  const missingHeaders = (cols: string[] | undefined, want: readonly string[]) => {
+    const have = new Set((cols ?? []).map((c) => c.trim().toLowerCase()));
+    return want.filter((h) => !have.has(h.toLowerCase()));
+  };
+  const projMissing = data.governance?.projects ? missingHeaders(data.governance.projects.columns, PROJECT_HEADERS) : [];
+  const progMissing = data.governance?.progress ? missingHeaders(data.governance.progress.columns, PROGRESS_HEADERS) : [];
   const [ping, setPing] = useState<{ ok: boolean; sync?: boolean; error?: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const repoUrl = BUILD.repo ? `https://github.com/${BUILD.repo}` : null;
@@ -48,8 +68,8 @@ export function ConnectionsCard() {
       connected: !!data.governance,
       tabs: [
         { tab: 'Main', use: 'Ad-Hoc tasks', ok: !!data.governance?.adhoc },
-        { tab: 'Projects', use: 'REVAMP projects (created by the Apps Script)', ok: !!data.governance?.projects || has(data.governance?.tabs, 'Projects') },
-        { tab: 'Project Progress', use: 'Project progress logs (created by the Apps Script)', ok: !!data.governance?.progress || has(data.governance?.tabs, 'Project Progress') },
+        { tab: 'Projects', use: 'REVAMP projects — created and edited from the dashboard (or by hand in the sheet)', ok: !!data.governance?.projects || has(data.governance?.tabs, 'Projects') },
+        { tab: 'Project Progress', use: 'Progress entries per project / report line — added from the dashboard', ok: !!data.governance?.progress || has(data.governance?.tabs, 'Project Progress') },
       ],
     },
     {
@@ -103,6 +123,23 @@ export function ConnectionsCard() {
                   ))}
                 </tbody>
               </table>
+              {i === 1 && (projMissing.length > 0 || progMissing.length > 0) && (
+                <p className="muted" style={{ fontSize: 12.5 }}>
+                  ⚠ Header row incomplete in the last sync —{' '}
+                  {projMissing.length > 0 && (
+                    <>
+                      <b>Projects</b> is missing {projMissing.length} column(s){progMissing.length > 0 ? '; ' : ''}
+                    </>
+                  )}
+                  {progMissing.length > 0 && (
+                    <>
+                      <b>Project Progress</b> is missing {progMissing.length} column(s)
+                    </>
+                  )}
+                  . Run <code>setup</code> once in Apps Script: it writes the missing headers into row 1 and keeps everything else. (A tab you created by hand
+                  can stay empty.)
+                </p>
+              )}
               {i === 2 && !s.connected && (
                 <p className="muted" style={{ fontSize: 12.5 }}>
                   To connect: share the Catalogue Overall Performance sheet with the service-account email (Viewer), then in GitHub add the variable{' '}
@@ -129,11 +166,22 @@ export function ConnectionsCard() {
         </div>
         <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13.5 }}>
           <li>
-            Open the <b>Governance</b> Google Sheet → <b>Extensions → Apps Script</b>. Delete everything in <code>Code.gs</code>, click <b>Copy script</b> above and paste, then{' '}
-            <b>Save</b>.
+            Open Apps Script: in the <b>Governance</b> Google Sheet → <b>Extensions → Apps Script</b>.
+            <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
+              Seeing “Sorry, unable to open the file at this time” / “দুঃখিত, এই মুহূর্তে ফাইলটি খোলা গেল না”? That happens when more than one Google account is signed in. Open an{' '}
+              <b>Incognito / private window</b>, sign in with <b>only</b> the sheet owner's account and try again — or go to{' '}
+              <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener noreferrer">
+                script.google.com → New project
+              </a>{' '}
+              with that account. Both work: the script opens the Governance sheet by its ID.
+            </div>
           </li>
           <li>
-            Choose <code>setup</code> in the toolbar → <b>Run</b> → allow the permissions (creates the Projects / Project Progress tabs).
+            Delete everything in <code>Code.gs</code>, click <b>Copy script</b> above and paste, then <b>Save</b>.
+          </li>
+          <li>
+            Choose <code>setup</code> in the toolbar → <b>Run</b> → allow the permissions. It uses your <b>Projects</b> / <b>Project Progress</b> tabs (creates them only if
+            missing) and fills in their header row.
           </li>
           <li>
             <b>Deploy → New deployment</b> → gear → <b>Web app</b> · Execute as <b>Me</b> · Who has access <b>Anyone</b> → <b>Deploy</b> → copy the Web app URL.
@@ -148,7 +196,23 @@ export function ConnectionsCard() {
                 )
               </>
             )}
-            : add the variable <code>GOVERNANCE_APPS_SCRIPT_URL</code> = that URL.
+            : add the variable <code>GOVERNANCE_APPS_SCRIPT_URL</code> = that URL, then click <b>Update data</b> (or run the workflow) so everyone gets it.
+            <div className="field" style={{ marginTop: 6, maxWidth: 640 }}>
+              <span>Want to try it right now? Paste the Web app URL — it is used in this browser only until the GitHub variable is set.</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input className="input" value={draftUrl} onChange={(e) => setDraftUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" />
+                <button type="button" className="btn btn-sm" disabled={!isAppsScriptUrl(draftUrl)} onClick={() => saveLocal(draftUrl)}>
+                  Use here
+                </button>
+                {localUrl && (
+                  <button type="button" className="btn btn-sm" onClick={() => saveLocal(null)}>
+                    Remove
+                  </button>
+                )}
+              </div>
+              {draftUrl && !isAppsScriptUrl(draftUrl) && <span style={{ color: 'var(--bad)', fontSize: 12 }}>It should look like https://script.google.com/macros/s/…/exec</span>}
+              {localUrl && !sharedUrl && <span className="muted" style={{ fontSize: 12 }}>Using the URL saved in this browser.</span>}
+            </div>
           </li>
           <li>
             For the <b>Update data</b> button: create a fine-grained GitHub token (

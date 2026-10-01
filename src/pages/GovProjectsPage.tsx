@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { PROJECT_PRIORITIES, PROJECT_STATUSES, PROJECT_WORK_TYPES } from '../config/governance.config';
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { LAYOUT_HELP, PROJECT_PRIORITIES, PROJECT_STATUSES, PROJECT_WORK_TYPES, REPORT_LAYOUTS, type ReportLayout } from '../config/governance.config';
 import { useApp } from '../hooks/AppContext';
 import { useGovernance } from '../hooks/useGovernance';
-import { newId, projectStats, type Project, type ProjectStats } from '../utils/governance';
+import { metricLabels, newId, projectStats, type Project, type ProjectStats } from '../utils/governance';
 import { fmtDate, fmtNum, fmtPct, fmtRelative, toIsoDate } from '../utils/format';
 import { Banner, Card, EmptyState, ErrorState, KpiCard, Meter, Segmented } from '../components/ui';
 import { Icon } from '../components/Icon';
@@ -29,13 +29,15 @@ function usePeople() {
 /* Create / edit form                                                  */
 /* ------------------------------------------------------------------ */
 
+const layoutDefaults = (l: ReportLayout) => LAYOUT_HELP[l];
+
 function ProjectForm({ initial, onClose, onSave }: { initial: Project | null; onClose: () => void; onSave: (row: Row) => Promise<void> }) {
   const people = usePeople();
   const [f, setF] = useState(() => ({
     name: initial?.name ?? '',
     workType: initial?.workType ?? '',
     description: initial?.description ?? '',
-    poc: initial?.poc ?? '',
+    pocs: initial?.pocs ?? [],
     assignees: initial?.assignees ?? [],
     totalSkus: initial?.totalSkus != null ? String(initial.totalSkus) : '',
     startDate: initial?.startDate || today(),
@@ -43,16 +45,35 @@ function ProjectForm({ initial, onClose, onSave }: { initial: Project | null; on
     status: initial?.status ?? 'Planned',
     priority: initial?.priority ?? 'Medium',
     foundLabel: initial?.foundLabel && initial.foundLabel !== 'Issues found' ? initial.foundLabel : '',
+    layout: (initial?.layout ?? 'Working / Updated') as ReportLayout,
+    lineHeader: initial?.lineHeader ?? layoutDefaults('Working / Updated').lineHeader,
+    lines: (initial?.lines ?? []).join('\n'),
+    valueMode: initial?.valueMode ?? 'Sum',
+    reportNote: initial?.reportNote ?? '',
+    showInReport: initial?.showInReport ?? true,
   }));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const up = (patch: Partial<typeof f>) => setF({ ...f, ...patch });
+  // People listed in the project but no longer in the roster stay selectable.
+  const choices = useMemo(() => [...new Set([...people, ...f.pocs, ...f.assignees])].sort((x, y) => x.localeCompare(y)), [people, f.pocs, f.assignees]);
+  const toggle = (list: string[], p: string, on: boolean) => (on ? [...list.filter((x) => x !== p), p] : list.filter((x) => x !== p));
+  const setLayout = (layout: ReportLayout) => {
+    const oldDefault = layoutDefaults(f.layout).lineHeader;
+    up({ layout, lineHeader: !f.lineHeader || f.lineHeader === oldDefault ? layoutDefaults(layout).lineHeader : f.lineHeader });
+  };
+  const help = layoutDefaults(f.layout);
+  const firstLabel = f.layout === 'Reviewed / Found / Updated' ? 'Name of the “found” number' : 'Name of the number column';
+  const firstPlaceholder =
+    f.layout === 'Reviewed / Found / Updated' ? 'Issues found (e.g. Wrong Category Found)' : f.layout === 'Working / Updated' ? 'Working (or Worked)' : f.layout === 'Count' ? 'Count' : 'Count of SKUs';
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!f.name.trim()) return setErr('Project name is required.');
     if (f.totalSkus && !/^\d[\d,]*$/.test(f.totalSkus.trim())) return setErr('Total SKUs must be a whole number.');
     if (f.dueDate && f.startDate && f.dueDate < f.startDate) return setErr('Due date is before the start date.');
+    const lines = [...new Set(f.lines.split(/[;\n]/).map((x) => x.trim()).filter(Boolean))];
+    if (lines.length > 30) return setErr('Use at most 30 report lines.');
     setBusy(true);
     setErr(null);
     try {
@@ -60,14 +81,20 @@ function ProjectForm({ initial, onClose, onSave }: { initial: Project | null; on
         'Project Name': f.name.trim(),
         'Work Type': f.workType.trim(),
         Description: f.description.trim(),
-        POC: f.poc,
-        Assignees: f.assignees.join(', '),
+        POC: f.pocs.join(', '),
+        Assignees: [...new Set([...f.assignees])].join(', '),
         'Total SKUs': f.totalSkus ? Number(f.totalSkus.replace(/,/g, '')) : '',
         'Start Date': f.startDate,
         'Due Date': f.dueDate,
         Status: f.status,
         Priority: f.priority,
-        'Found Label': f.foundLabel.trim() || 'Issues found',
+        'Found Label': f.foundLabel.trim() || (f.layout === 'Reviewed / Found / Updated' ? 'Issues found' : ''),
+        'Report Layout': f.layout,
+        'Line Header': f.lineHeader.trim() || help.lineHeader,
+        Lines: lines.join('; '),
+        'Value Mode': f.valueMode,
+        'Report Note': f.reportNote.trim(),
+        'Show In Report': f.showInReport ? 'Yes' : 'No',
       });
       onClose();
     } catch (e2) {
@@ -88,9 +115,10 @@ function ProjectForm({ initial, onClose, onSave }: { initial: Project | null; on
           </button>
         </div>
         <div className="drawer-body gov-form-body">
+          <div className="gov-form-section">Project</div>
           <label className="field">
-            <span>Project name *</span>
-            <input className="input" value={f.name} onChange={(e) => up({ name: e.target.value })} placeholder="e.g. Electronics Category Revamp" autoFocus />
+            <span>Project name * (report block title)</span>
+            <input className="input" value={f.name} onChange={(e) => up({ name: e.target.value })} placeholder="e.g. QC Rejected Inactive to Live" autoFocus />
           </label>
           <label className="field">
             <span>Work type</span>
@@ -107,19 +135,16 @@ function ProjectForm({ initial, onClose, onSave }: { initial: Project | null; on
           </label>
           <div className="gov-2col">
             <label className="field">
-              <span>POC (owner)</span>
-              <select className="select" value={f.poc} onChange={(e) => up({ poc: e.target.value })}>
-                <option value="">—</option>
-                {people.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
+              <span>Total SKUs (scope)</span>
+              <input className="input" inputMode="numeric" value={f.totalSkus} onChange={(e) => up({ totalSkus: e.target.value })} placeholder="e.g. 101402" />
             </label>
             <label className="field">
-              <span>Total SKUs (scope)</span>
-              <input className="input" inputMode="numeric" value={f.totalSkus} onChange={(e) => up({ totalSkus: e.target.value })} placeholder="e.g. 737503" />
+              <span>Priority</span>
+              <select className="select" value={f.priority} onChange={(e) => up({ priority: e.target.value })}>
+                {PROJECT_PRIORITIES.map((x) => (
+                  <option key={x}>{x}</option>
+                ))}
+              </select>
             </label>
             <label className="field">
               <span>Start date</span>
@@ -132,40 +157,86 @@ function ProjectForm({ initial, onClose, onSave }: { initial: Project | null; on
             <label className="field">
               <span>Status</span>
               <select className="select" value={f.status} onChange={(e) => up({ status: e.target.value })}>
-                {PROJECT_STATUSES.map((s) => (
-                  <option key={s}>{s}</option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>Priority</span>
-              <select className="select" value={f.priority} onChange={(e) => up({ priority: e.target.value })}>
-                {PROJECT_PRIORITIES.map((s) => (
-                  <option key={s}>{s}</option>
+                {PROJECT_STATUSES.map((x) => (
+                  <option key={x}>{x}</option>
                 ))}
               </select>
             </label>
           </div>
-          <label className="field">
-            <span>Name of the “found” metric</span>
-            <input className="input" value={f.foundLabel} onChange={(e) => up({ foundLabel: e.target.value })} placeholder="Issues found (e.g. Wrong Category Found)" />
-          </label>
+
+          <div className="gov-form-section">People</div>
           <div className="field">
-            <span>Assign team members</span>
-            <div className="rb-checks" style={{ maxHeight: 220 }}>
-              {people.map((p) => (
-                <label key={p}>
+            <span>POC and team — tick POC for the owner(s) shown in the report (“POC: Limon / Muntasir”)</span>
+            <div className="gov-people">
+              <div className="gov-people-head">
+                <span>Name</span>
+                <span>POC</span>
+                <span>Assigned</span>
+              </div>
+              {choices.map((p) => (
+                <div key={p} className="gov-people-row">
+                  <span>{p}</span>
+                  <input type="checkbox" aria-label={`${p} is POC`} checked={f.pocs.includes(p)} onChange={(e) => up({ pocs: toggle(f.pocs, p, e.target.checked) })} />
                   <input
                     type="checkbox"
+                    aria-label={`Assign ${p}`}
                     checked={f.assignees.includes(p)}
-                    onChange={(e) => up({ assignees: e.target.checked ? [...f.assignees, p] : f.assignees.filter((x) => x !== p) })}
+                    onChange={(e) => up({ assignees: toggle(f.assignees, p, e.target.checked) })}
                   />
-                  {p}
-                  {p === f.poc && <span className="meta">POC</span>}
-                </label>
+                </div>
               ))}
             </div>
           </div>
+
+          <div className="gov-form-section">Report block (Product Governance slide)</div>
+          <label className="field">
+            <span>Table type</span>
+            <select className="select" value={f.layout} onChange={(e) => setLayout(e.target.value as ReportLayout)}>
+              {REPORT_LAYOUTS.map((x) => (
+                <option key={x}>{x}</option>
+              ))}
+            </select>
+          </label>
+          <div className="gov-2col">
+            <label className="field">
+              <span>First column header</span>
+              <input className="input" value={f.lineHeader} onChange={(e) => up({ lineHeader: e.target.value })} placeholder={help.lineHeader} />
+            </label>
+            <label className="field">
+              <span>{firstLabel}</span>
+              <input className="input" value={f.foundLabel} onChange={(e) => up({ foundLabel: e.target.value })} placeholder={firstPlaceholder} />
+            </label>
+          </div>
+          <label className="field">
+            <span>Report lines — one per row (leave empty for a single line)</span>
+            <textarea className="rb-textarea" value={f.lines} onChange={(e) => up({ lines: e.target.value })} placeholder={help.example.split('; ').join('\n') || 'e.g. Deep Category'} />
+          </label>
+          <div className="gov-2col">
+            <label className="field">
+              <span>Numbers in a week / month are</span>
+              <select className="select" value={f.valueMode} onChange={(e) => up({ valueMode: e.target.value as 'Sum' | 'Latest' })}>
+                <option value="Sum">Sum of the entries (daily work)</option>
+                <option value="Latest">Latest entry (running total)</option>
+              </select>
+            </label>
+            <label className="field" style={{ justifyContent: 'flex-end' }}>
+              <span>&nbsp;</span>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input type="checkbox" checked={f.showInReport} onChange={(e) => up({ showInReport: e.target.checked })} />
+                Show in the governance report
+              </label>
+            </label>
+          </div>
+          <label className="field">
+            <span>Report note (shown under the block)</span>
+            <textarea
+              className="rb-textarea"
+              style={{ minHeight: 60 }}
+              value={f.reportNote}
+              onChange={(e) => up({ reportNote: e.target.value })}
+              placeholder="e.g. Product Name: title length/tag cleanup. Image Check: background & low-res cleanup."
+            />
+          </label>
           {err && <Banner tone="bad">{err}</Banner>}
         </div>
         <div className="gov-form-foot">
@@ -173,7 +244,7 @@ function ProjectForm({ initial, onClose, onSave }: { initial: Project | null; on
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? 'Saving…' : initial ? 'Save changes' : 'Create project'}
+            {busy ? 'Saving to Google Sheets…' : initial ? 'Save changes' : 'Create project'}
           </button>
         </div>
       </form>
@@ -185,37 +256,45 @@ function ProjectForm({ initial, onClose, onSave }: { initial: Project | null; on
 /* Project detail                                                      */
 /* ------------------------------------------------------------------ */
 
-function ProgressForm({ project, onSave }: { project: Project; onSave: (row: Row) => Promise<void> }) {
+function ProgressForm({ project, onSave }: { project: Project; onSave: (rows: Row[]) => Promise<void> }) {
   const { who } = useGovernance();
   const people = usePeople();
-  const choices = project.assignees.length ? [...new Set([...project.assignees, project.poc].filter(Boolean))] : people;
-  const [f, setF] = useState({ date: today(), person: choices.includes(who) ? who : choices[0] ?? '', reviewed: '', found: '', updated: '', note: '' });
+  const choices = project.assignees.length || project.pocs.length ? [...new Set([...project.assignees, ...project.pocs])] : people;
+  const lines = project.lines.length ? project.lines : [''];
+  const fields = metricLabels(project);
+  const blank = () => Object.fromEntries(lines.map((l) => [l, { reviewed: '', found: '', updated: '' }])) as Record<string, Record<'reviewed' | 'found' | 'updated', string>>;
+  const [f, setF] = useState({ date: today(), person: choices.includes(who) ? who : choices[0] ?? '', note: '' });
+  const [vals, setVals] = useState(blank);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'bad' | 'warn'; text: string } | null>(null);
-  const up = (patch: Partial<typeof f>) => setF({ ...f, ...patch });
   const n = (s: string) => (s.trim() ? Number(s.replace(/,/g, '')) : 0);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const vals = [f.reviewed, f.found, f.updated];
-    if (vals.some((v) => v.trim() && !/^\d[\d,]*$/.test(v.trim()))) return setMsg({ tone: 'bad', text: 'Counts must be whole numbers.' });
-    if (vals.every((v) => !v.trim())) return setMsg({ tone: 'bad', text: 'Enter at least one count.' });
+    const all = lines.flatMap((l) => fields.map((k) => vals[l]?.[k.key] ?? ''));
+    if (all.some((v) => v.trim() && !/^\d[\d,]*$/.test(v.trim()))) return setMsg({ tone: 'bad', text: 'Counts must be whole numbers.' });
+    if (all.every((v) => !v.trim())) return setMsg({ tone: 'bad', text: 'Enter at least one count.' });
     if (!f.person) return setMsg({ tone: 'bad', text: 'Choose who did the work.' });
-    setBusy(true);
-    setMsg(null);
-    try {
-      await onSave({
+    const rows: Row[] = lines
+      .filter((l) => fields.some((k) => (vals[l]?.[k.key] ?? '').trim()))
+      .map((l) => ({
         'Log ID': newId('LOG'),
         'Project ID': project.id,
         Date: f.date,
         Person: f.person,
-        Reviewed: n(f.reviewed),
-        Found: n(f.found),
-        Updated: n(f.updated),
+        Line: l,
+        Reviewed: n(vals[l].reviewed),
+        Found: n(vals[l].found),
+        Updated: n(vals[l].updated),
         Note: f.note.trim(),
-      });
-      setF({ ...f, reviewed: '', found: '', updated: '', note: '' });
-      setMsg({ tone: 'warn', text: 'Saved to the Governance sheet.' });
+      }));
+    setBusy(true);
+    setMsg(null);
+    try {
+      await onSave(rows);
+      setVals(blank());
+      setF({ ...f, note: '' });
+      setMsg({ tone: 'warn', text: `Saved ${rows.length} entr${rows.length === 1 ? 'y' : 'ies'} to the Governance sheet.` });
     } catch (e2) {
       setMsg({ tone: 'bad', text: (e2 as Error).message });
     } finally {
@@ -228,32 +307,52 @@ function ProgressForm({ project, onSave }: { project: Project; onSave: (row: Row
       <div className="gov-log-grid">
         <label className="field">
           <span>Date</span>
-          <input type="date" className="input" value={f.date} max={today()} onChange={(e) => up({ date: e.target.value })} />
+          <input type="date" className="input" value={f.date} max={today()} onChange={(e) => setF({ ...f, date: e.target.value })} />
         </label>
         <label className="field">
           <span>Worked by</span>
-          <select className="select" value={f.person} onChange={(e) => up({ person: e.target.value })}>
+          <select className="select" value={f.person} onChange={(e) => setF({ ...f, person: e.target.value })}>
             {choices.map((p) => (
               <option key={p}>{p}</option>
             ))}
           </select>
         </label>
-        <label className="field">
-          <span>Reviewed</span>
-          <input className="input" inputMode="numeric" value={f.reviewed} onChange={(e) => up({ reviewed: e.target.value })} placeholder="0" />
-        </label>
-        <label className="field">
-          <span>{project.foundLabel}</span>
-          <input className="input" inputMode="numeric" value={f.found} onChange={(e) => up({ found: e.target.value })} placeholder="0" />
-        </label>
-        <label className="field">
-          <span>Updated</span>
-          <input className="input" inputMode="numeric" value={f.updated} onChange={(e) => up({ updated: e.target.value })} placeholder="0" />
-        </label>
       </div>
+      <table className="data gov-log-table">
+        <thead>
+          <tr>
+            <th>{project.lineHeader}</th>
+            {fields.map((k) => (
+              <th key={k.key} className="n">
+                {k.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((l) => (
+            <tr key={l || '_'}>
+              <td>{l || project.name}</td>
+              {fields.map((k) => (
+                <td key={k.key} className="n">
+                  <input
+                    className="input"
+                    inputMode="numeric"
+                    aria-label={`${l || project.name} ${k.label}`}
+                    value={vals[l]?.[k.key] ?? ''}
+                    onChange={(e) => setVals({ ...vals, [l]: { ...vals[l], [k.key]: e.target.value } })}
+                    placeholder="0"
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {project.valueMode === 'Latest' && <div className="muted" style={{ fontSize: 12 }}>This project uses running totals: enter the current total for each line, not today's increase.</div>}
       <label className="field">
         <span>Note</span>
-        <input className="input" value={f.note} onChange={(e) => up({ note: e.target.value })} placeholder="Optional" />
+        <input className="input" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder="Optional" />
       </label>
       <div className="rb-actions" style={{ alignItems: 'center' }}>
         <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
@@ -268,6 +367,8 @@ function ProgressForm({ project, onSave }: { project: Project; onSave: (row: Row
 function ProjectDrawer({ project, stats, onClose, onEdit }: { project: Project; stats: ProjectStats; onClose: () => void; onEdit: () => void }) {
   const { writeUrl, updateProject, logProgress, deleteLog, adhoc } = useGovernance();
   const [err, setErr] = useState<string | null>(null);
+  const labels = metricLabels(project);
+  const hasLines = project.lines.length > 0 || stats.logs.some((l) => l.line);
   const related = useMemo(
     () => (adhoc?.tasks ?? []).filter((t) => t.project && t.project.toLowerCase() === project.name.toLowerCase()),
     [adhoc, project.name],
@@ -348,19 +449,68 @@ function ProjectDrawer({ project, stats, onClose, onEdit }: { project: Project; 
           <dl className="kv">
             <dt>Total SKUs</dt>
             <dd>{fmtNum(project.totalSkus)}</dd>
-            <dt>Reviewed</dt>
+            <dt>{labels[0].label}</dt>
             <dd>
-              {fmtNum(stats.reviewed)} ({fmtPct(stats.progressPct)})
+              {fmtNum(stats.reviewed)}
+              {project.totalSkus ? ` (${fmtPct(stats.progressPct)} of scope)` : ''}
             </dd>
-            <dt>{project.foundLabel}</dt>
-            <dd>{fmtNum(stats.found)}</dd>
-            <dt>Updated</dt>
+            {labels.slice(1).map((k) => (
+              <Fragment key={k.key}>
+                <dt>{k.label}</dt>
+                <dd>{fmtNum(stats[k.key])}</dd>
+              </Fragment>
+            ))}
+            {project.layout !== 'Count' && project.layout !== 'Status breakdown' && (
+              <>
+                <dt>Pending</dt>
+                <dd>
+                  {fmtNum(stats.pending)} ({fmtPct(stats.fixPct)} done)
+                </dd>
+              </>
+            )}
+            <dt>Report</dt>
             <dd>
-              {fmtNum(stats.updated)} ({fmtPct(stats.fixPct)} of found)
+              {project.showInReport ? 'Shown' : 'Hidden'} · {project.layout} · {project.valueMode === 'Latest' ? 'latest entry per period' : 'sum per period'}
             </dd>
-            <dt>Pending</dt>
-            <dd>{fmtNum(stats.pending)}</dd>
           </dl>
+          {project.reportNote && (
+            <p className="muted" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+              📝 {project.reportNote}
+            </p>
+          )}
+
+          {(project.lines.length > 0 || project.layout === 'Status breakdown') && (
+            <Card title="Report lines" subtitle={project.valueMode === 'Latest' ? 'Latest entry per line' : 'All entries added up'} bodyClassName="">
+              <div className="table-wrap flush">
+                <table className="data">
+                  <thead>
+                    <tr>
+                      <th>{project.lineHeader}</th>
+                      {labels.map((k) => (
+                        <th className="n" key={k.key}>
+                          {k.label}
+                        </th>
+                      ))}
+                      <th className="n">Entries</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.lines.map((l) => (
+                      <tr key={l.line || '_'}>
+                        <td>{l.line || project.name}</td>
+                        {labels.map((k) => (
+                          <td className="n" key={k.key}>
+                            {fmtNum(l[k.key])}
+                          </td>
+                        ))}
+                        <td className="n">{l.entries}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
 
           {writeUrl && (
             <Card title="Log progress" subtitle="Daily / weekly numbers for this project">
@@ -368,7 +518,7 @@ function ProjectDrawer({ project, stats, onClose, onEdit }: { project: Project; 
             </Card>
           )}
 
-          {stats.byPerson.length > 0 && (
+          {stats.byPerson.length > 0 && project.valueMode === 'Sum' && (
             <Card title="By person" bodyClassName="">
               <div className="table-wrap flush">
                 <table className="data">
@@ -376,9 +526,11 @@ function ProjectDrawer({ project, stats, onClose, onEdit }: { project: Project; 
                     <tr>
                       <th>Person</th>
                       <th className="n">Logs</th>
-                      <th className="n">Reviewed</th>
-                      <th className="n">{project.foundLabel}</th>
-                      <th className="n">Updated</th>
+                      {labels.map((k) => (
+                        <th className="n" key={k.key}>
+                          {k.label}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -386,9 +538,11 @@ function ProjectDrawer({ project, stats, onClose, onEdit }: { project: Project; 
                       <tr key={p.person}>
                         <td>{p.person}</td>
                         <td className="n">{p.logs}</td>
-                        <td className="n">{fmtNum(p.reviewed)}</td>
-                        <td className="n">{fmtNum(p.found)}</td>
-                        <td className="n">{fmtNum(p.updated)}</td>
+                        {labels.map((k) => (
+                          <td className="n" key={k.key}>
+                            {fmtNum(p[k.key])}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
@@ -407,9 +561,12 @@ function ProjectDrawer({ project, stats, onClose, onEdit }: { project: Project; 
                     <tr>
                       <th>Date</th>
                       <th>Person</th>
-                      <th className="n">Reviewed</th>
-                      <th className="n">Found</th>
-                      <th className="n">Updated</th>
+                      {hasLines && <th>{project.lineHeader}</th>}
+                      {labels.map((k) => (
+                        <th className="n" key={k.key}>
+                          {k.label}
+                        </th>
+                      ))}
                       <th>Note</th>
                       {writeUrl && <th />}
                     </tr>
@@ -419,9 +576,12 @@ function ProjectDrawer({ project, stats, onClose, onEdit }: { project: Project; 
                       <tr key={l.id} style={l.pending ? { opacity: 0.6 } : undefined}>
                         <td>{l.date}</td>
                         <td>{l.person}</td>
-                        <td className="n">{fmtNum(l.reviewed)}</td>
-                        <td className="n">{fmtNum(l.found)}</td>
-                        <td className="n">{fmtNum(l.updated)}</td>
+                        {hasLines && <td>{l.line || '—'}</td>}
+                        {labels.map((k) => (
+                          <td className="n" key={k.key}>
+                            {fmtNum(l[k.key])}
+                          </td>
+                        ))}
                         <td>{l.note ? <span className="cell-trunc" title={l.note}>{l.note}</span> : ''}</td>
                         {writeUrl && (
                           <td>
@@ -490,11 +650,13 @@ export default function GovProjectsPage() {
     const closed = /complete|cancel/i.test(p.status);
     if (show === 'active' && closed) return false;
     if (show === 'done' && !closed) return false;
-    if (person && p.poc !== person && !p.assignees.includes(person)) return false;
+    if (person && !p.pocs.includes(person) && !p.assignees.includes(person)) return false;
     return true;
   });
   const active = withStats.filter(({ p }) => !/complete|cancel/i.test(p.status));
-  const sum = (k: 'reviewed' | 'found' | 'updated' | 'pending') => active.reduce((s, x) => s + x.s[k], 0);
+  // Seller / logo counts and status breakdowns are not SKU work, so they stay out of the SKU totals.
+  const skuWork = active.filter(({ p }) => p.layout === 'Reviewed / Found / Updated' || p.layout === 'Working / Updated');
+  const sum = (k: 'reviewed' | 'found' | 'updated' | 'pending') => skuWork.reduce((s, x) => s + x.s[k], 0);
   const open = openId ? withStats.find((x) => x.p.id === openId) : null;
 
   if (!g.gov) {
@@ -519,7 +681,7 @@ export default function GovProjectsPage() {
 
       <div className="grid grid-kpi">
         <KpiCard label="Active projects" value={fmtNum(active.length)} sub={`${fmtNum(withStats.length - active.length)} completed / cancelled`} color="var(--series-1)" />
-        <KpiCard label="Reviewed (active)" value={fmtNum(sum('reviewed'))} sub={`of ${fmtNum(active.reduce((s, x) => s + (x.p.totalSkus ?? 0), 0))} SKUs in scope`} color="var(--series-3)" />
+        <KpiCard label="Reviewed / worked (active)" value={fmtNum(sum('reviewed'))} sub={`of ${fmtNum(skuWork.reduce((s, x) => s + (x.p.totalSkus ?? 0), 0))} SKUs in scope`} color="var(--series-3)" />
         <KpiCard label="Updated (active)" value={fmtNum(sum('updated'))} sub={`${fmtNum(sum('found'))} found`} color="var(--series-7)" />
         <KpiCard label="Pending fixes" value={fmtNum(sum('pending'))} sub={`${active.filter((x) => x.s.overdue).length} project(s) overdue`} color="var(--bad)" />
       </div>
@@ -587,23 +749,31 @@ export default function GovProjectsPage() {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginTop: 10 }}>
                   <span>
-                    Reviewed <b className="num">{fmtNum(s.reviewed)}</b>
+                    {metricLabels(p)[0].label} <b className="num">{fmtNum(s.reviewed)}</b>
                     {p.totalSkus ? ` / ${fmtNum(p.totalSkus)}` : ''}
                   </span>
                   <b className="num">{fmtPct(s.progressPct, 0)}</b>
                 </div>
                 <Meter pct={s.progressPct} label={`${p.name} progress`} />
                 <div className="gov-card-nums">
-                  <span>
-                    {p.foundLabel}
-                    <b className="num">{fmtNum(s.found)}</b>
-                  </span>
-                  <span>
-                    Updated<b className="num">{fmtNum(s.updated)}</b>
-                  </span>
-                  <span>
-                    Pending<b className="num">{fmtNum(s.pending)}</b>
-                  </span>
+                  {metricLabels(p)
+                    .slice(1)
+                    .map((k) => (
+                      <span key={k.key}>
+                        {k.label}
+                        <b className="num">{fmtNum(s[k.key])}</b>
+                      </span>
+                    ))}
+                  {(p.layout === 'Reviewed / Found / Updated' || p.layout === 'Working / Updated') && (
+                    <span>
+                      Pending<b className="num">{fmtNum(s.pending)}</b>
+                    </span>
+                  )}
+                  {p.lines.length > 0 && (
+                    <span>
+                      Lines<b className="num">{p.lines.length}</b>
+                    </span>
+                  )}
                 </div>
                 <div className="gov-card-foot">
                   <span className="roles">

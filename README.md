@@ -148,7 +148,7 @@ How each number is calculated (checked against the Week 37 vs Week 38 template):
 | Upload backlog | Requests received before the period end and not uploaded by then (Rejected excluded) |
 | Week numbers | Week 1 = first full Sun–Sat week of the year (13–19 Sep 2026 = Week 37), as in the template. Change `WEEK_NUMBERING` in `src/config/people.config.ts` to use the sheet's WEEKNUM instead. |
 
-The **Product Governance** report is planned for a later update.
+The **Product Governance** report is under **Reports → Product Governance** (see *Governance team tracker* below).
 
 ## Data updates (manual)
 
@@ -177,25 +177,44 @@ Two kinds of Governance work, both read from the **Governance Wrork Tracker** sp
 | Page | Source | What it shows |
 |---|---|---|
 | **Governance → Ad-Hoc Tasks** | `Main` tab (Date, Task Type, Project Name, Shop Name, Product Count, Shop Count, Image Count, Source, Wroking By, Status, Note) | Tasks / products / shops / images by task type and person, weekly or monthly trend, filterable log, CSV |
-| **Governance → REVAMP Projects** | `Projects` + `Project Progress` tabs (created by the Apps Script) | Project cards with progress, assign POC and team, log daily progress (Reviewed / Found / Updated), pending fixes, overdue flags |
-| **Reports → Product Governance** | both | "Product Governance — Week 37 vs Week 38" slide (weekly / monthly / yearly), PDF / Excel |
+| **Governance → REVAMP Projects** | `Projects` + `Project Progress` tabs (created and edited from the dashboard, or by hand) | Create / edit projects with every field of the report template, assign POC(s) and team, log progress per report line, pending fixes, overdue flags |
+| **Reports → Product Governance** | both | "Product Governance — Week 37 vs Week 38" slide (weekly / monthly / yearly) with one block per project, editable text, PDF / **PowerPoint (editable .pptx)** / Excel |
 
 Header names are matched flexibly (`src/config/governance.config.ts`), so the "Wroking By" typo or a later rename keeps working.
 
+### REVAMP project fields (Product Governance template)
+
+Each project becomes one block on the Product Governance slide. Everything is entered in **+ New project** / **Edit** and saved to the `Projects` tab:
+
+| Field | Example from the template |
+|---|---|
+| Project name (block title), work type, description, Total SKUs, start / due date, status, priority | *QC Rejected Inactive to Live* |
+| POC(s) and assigned team | *POC: Muntasir / Galib Hossain* |
+| Table type | **Working / Updated** (*Highlight & Description — W37 Working 38,398 · Updated 28,220 …*), **Count** (*Brand Auth. — Seller Count 3 → 4*), **Status breakdown** (*Right / Wrong Category / Check Pending + Grand Total*), or **Reviewed / Found / Updated** |
+| First column header, name of the number column | *Work Type* / *Category* / *Metric*, *Working* or *Worked* |
+| Report lines (one per row) | *Highlight & Description*, *Category Shifting* |
+| Numbers per week / month | **Sum** of the entries (daily work), or **Latest** entry (running totals copied from a tracker) |
+| Report note, Show in report | *Product Name: title length/tag cleanup …* |
+
+**Log progress** (inside a project) has one row per report line, and each line is saved as its own row in `Project Progress` (with a `Line` column). A project whose first entry falls in the reported week gets a **NEW** tag. In the report you can tick which blocks appear, edit any block's title or note, and edit the summary and key notes. Then download **PDF**, **PowerPoint** (every text box and table can be edited in PowerPoint / Google Slides) or **Excel**.
+
+You can also edit the `Projects` / `Project Progress` tabs by hand. Columns are matched by header name (any order; extra columns of your own are kept). After an edit, click ↻ on the REVAMP Projects page.
+
 ### Switch on project assigning (one-time, ~5 minutes)
 
-GitHub Pages cannot write to Google Sheets, so a small Google Apps Script inside the Governance sheet does the writing:
+GitHub Pages cannot write to Google Sheets, so a small Google Apps Script does the writing:
 
 1. Open the Governance spreadsheet → **Extensions → Apps Script**.
-2. Delete what is in `Code.gs`, paste the contents of [`apps-script/Code.gs`](apps-script/Code.gs), click **Save**.
-3. Choose the function **`setup`** in the toolbar → **Run** → allow the permissions. This creates the `Projects` and `Project Progress` tabs; the `Main` tab is never modified.
+   *If Google shows "Sorry, unable to open the file at this time" (দুঃখিত, এই মুহূর্তে ফাইলটি খোলা গেল না):* this happens when more than one Google account is signed in. Use an **Incognito / private window** signed in with **only** the sheet owner's account, or open <https://script.google.com> → **New project** with that account. A standalone project works the same, because the script opens the Governance sheet by its ID (`SPREADSHEET_ID` at the top of `Code.gs`).
+2. Delete what is in `Code.gs`, paste the contents of [`apps-script/Code.gs`](apps-script/Code.gs) (or use **Settings → Connections → Copy script**), click **Save**.
+3. Choose the function **`setup`** in the toolbar → **Run** → allow the permissions. It uses your existing `Projects` and `Project Progress` tabs (it creates them only if they are missing) and writes any missing header cells into row 1. The `Main` tab is never modified.
 4. **Deploy → New deployment** → gear icon → **Web app** → *Execute as:* **Me**, *Who has access:* **Anyone** → **Deploy** → copy the **Web app URL** (`https://script.google.com/macros/s/…/exec`).
-5. In GitHub: **Settings → Secrets and variables → Actions → Variables → New repository variable** named `GOVERNANCE_APPS_SCRIPT_URL` with that URL.
-6. **Actions → Sync Google Sheet & Deploy → Run workflow**.
+5. In GitHub: **Settings → Secrets and variables → Actions → Variables → New repository variable** named `GOVERNANCE_APPS_SCRIPT_URL` with that URL. (To try it at once in your own browser, paste the URL in **Settings → Connections → Use here**.)
+6. Click **Update data** (or **Actions → Sync Google Sheet & Deploy → Run workflow**).
 
-After that, REVAMP Projects shows **+ New project**, **Edit**, a status picker and **Log progress**. Changes are written to the sheet immediately and the page reads the tabs live through the same script, so there is no 5-minute wait.
+After that, REVAMP Projects shows **+ New project**, **Edit**, a status picker and **Log progress**. Changes are written to the Google Sheet immediately, and the page reads the tabs live through the same script, so there is no waiting for a sync.
 
-If you later change `Code.gs`, use **Deploy → Manage deployments → Edit → Version: New version** so the URL stays the same.
+If you later change `Code.gs`, use **Deploy → Manage deployments → Edit → Version: New version** so the URL stays the same. **Updating from v1.3:** paste the new `Code.gs`, run `setup` once (adds the new columns), and deploy a new version.
 
 > Access: as chosen, anyone who has the dashboard link can create or edit projects and progress. The script only accepts the fields listed in `Code.gs`, validates numbers and dates, and neutralises formulas. It cannot read or change any other tab.
 

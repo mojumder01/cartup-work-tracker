@@ -7,6 +7,17 @@ import type { CellValue } from '../types';
 
 type Row = Record<string, CellValue>;
 
+export const LOCAL_URL_KEY = 'cartup.appsScriptUrlLocal';
+export const isAppsScriptUrl = (u: string) => /^https:\/\/script\.google\.com\/(a\/macros\/[\w.-]+|macros)\/s\/[\w-]+\/exec$/.test(u.trim());
+export function localAppsScriptUrl(): string | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(LOCAL_URL_KEY) ?? 'null');
+    return typeof v === 'string' && isAppsScriptUrl(v) ? v.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Writes made in this browser that the sheet has not confirmed yet (shown as "saving…/pending sync"). */
 interface Pending {
   projects: Row[];
@@ -19,7 +30,8 @@ const EMPTY: Pending = { projects: [], updates: [], logs: [], deletedLogs: [] };
 function useGovernanceState() {
   const { data } = useApp();
   const gov = data.governance ?? null;
-  const writeUrl = gov?.writeUrl ?? null;
+  // A Web app URL saved in Settings → Connections (this browser only) works before the GitHub variable is set.
+  const writeUrl = gov?.writeUrl || localAppsScriptUrl() || null;
   const adhoc = useMemo(() => parseAdhoc(gov?.adhoc), [gov]);
 
   const [live, setLive] = useState<{ projects: Row[]; progress: Row[]; at: number } | null>(null);
@@ -108,11 +120,12 @@ function useGovernanceState() {
     },
     [writeUrl, who, pending, reload],
   );
+  /** One or more progress entries (one per report line) in a single request. */
   const logProgress = useCallback(
-    async (row: Row) => {
+    async (rows: Row[]) => {
       guard();
-      await api.logProgress(writeUrl!, row);
-      setPending({ ...pending, logs: [...pending.logs, row] });
+      await api.logProgress(writeUrl!, rows);
+      setPending({ ...pending, logs: [...pending.logs, ...rows] });
       reload();
     },
     [writeUrl, pending, reload],
@@ -154,7 +167,7 @@ export function projectToRow(p: Project): Row {
     'Project Name': p.name,
     'Work Type': p.workType,
     Description: p.description,
-    POC: p.poc,
+    POC: p.pocs.join(', '),
     Assignees: p.assignees.join(', '),
     'Total SKUs': p.totalSkus,
     'Start Date': p.startDate,
@@ -164,6 +177,12 @@ export function projectToRow(p: Project): Row {
     'Found Label': p.foundLabel,
     'Updated At': p.updatedAt ? new Date(p.updatedAt).toISOString() : null,
     'Updated By': p.updatedBy,
+    'Report Layout': p.layout,
+    'Line Header': p.lineHeader,
+    Lines: p.lines.join('; '),
+    'Value Mode': p.valueMode,
+    'Report Note': p.reportNote,
+    'Show In Report': p.showInReport ? 'Yes' : 'No',
   };
 }
 
