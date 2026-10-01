@@ -23,7 +23,7 @@
   },
   "$comment_performance": "Catalogue Overall Performance spreadsheet (Daily / Monthly performance report). Set the ID here or as the GitHub variable PERFORMANCE_SHEET_ID, and share the sheet with the service account (Viewer). Tab names match by prefix.",
   "performance": {
-    "spreadsheetId": "",
+    "spreadsheetId": "1YZpc9focwHtlK-10JF122ANYnNHt6AymsP8RP7fsY60",
     "tabs": {
       "monthly": "Monthly Performance",
       "daily": "Daily Performance",

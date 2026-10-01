@@ -1,7 +1,7 @@
 {
   "name": "cartup-content-work-tracker",
   "private": true,
-  "version": "1.5.2",
+  "version": "1.5.3",
   "type": "module",
   "description": "Cartup Content work performance dashboard (Google Sheets -> GitHub Actions -> GitHub Pages)",
   "engines": {
