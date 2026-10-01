@@ -26,6 +26,8 @@ interface Settings {
   people: Partial<Record<TeamId, string[]>>;
   showGlance: boolean;
   highlights: Highlight[];
+  /** "New" labels for people with no work in the previous period. */
+  markNew: 'off' | 'auto';
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -36,6 +38,7 @@ const DEFAULT_SETTINGS: Settings = {
   people: {},
   showGlance: true,
   highlights: [],
+  markNew: 'off',
 };
 
 const ROLE: Record<string, string> = { Production: C.uploadedBy, Visual: C.visualEditor, QC: C.qcBy };
@@ -180,7 +183,8 @@ export function ReportBuilder() {
   }, [scopeKey]);
 
   const summary = summaryEdit ?? report.summary;
-  const notes = (notesEdit ?? report.notes.join('\n')).split('\n').map((l) => l.trim()).filter(Boolean);
+  const autoNotes = s.markNew === 'auto' ? report.notes : report.notes.filter((n) => !n.startsWith('New in production'));
+  const notes = (notesEdit ?? autoNotes.join('\n')).split('\n').map((l) => l.trim()).filter(Boolean);
   const title = `Individual Summary — ${comparisonTitle(prev, cur)}`;
 
   const slideRef = useRef<HTMLDivElement>(null);
@@ -228,7 +232,7 @@ export function ReportBuilder() {
       rows.push([sec.title]);
       rows.push(['Name', ...sec.columns.map((c) => `${prev.short} ${c.label}`), ...sec.columns.map((c) => `${cur.short} ${c.label}`), sec.deltaLabel]);
       for (const r of sec.rows) {
-        rows.push([r.fullName, ...sec.columns.map((c) => r.prev?.[c.key] ?? null), ...sec.columns.map((c) => r.cur?.[c.key] ?? null), r.isNew ? 'New' : r.delta]);
+        rows.push([r.fullName, ...sec.columns.map((c) => r.prev?.[c.key] ?? null), ...sec.columns.map((c) => r.cur?.[c.key] ?? null), r.isNew && s.markNew === 'auto' ? 'New' : r.delta]);
       }
       rows.push(['Total', ...sec.columns.map((c) => sec.total.prev[c.key]), ...sec.columns.map((c) => sec.total.cur[c.key]), sec.total.delta]);
       rows.push([]);
@@ -366,6 +370,22 @@ export function ReportBuilder() {
             </button>
           </div>
 
+          <div className="rb-group">
+            <span className="rb-label">“New” labels</span>
+            <Segmented
+              label="New labels"
+              value={s.markNew}
+              onChange={(v) => update({ markNew: v })}
+              options={[
+                { id: 'off', label: 'Off (show numbers)' },
+                { id: 'auto', label: 'Automatic' },
+              ]}
+            />
+            <span className="muted" style={{ fontSize: 12 }}>
+              Automatic shows “New” for anyone with no work in {prev.label}.
+            </span>
+          </div>
+
           <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input type="checkbox" checked={s.showGlance} onChange={(e) => update({ showGlance: e.target.checked })} />
             Show “At a Glance” panel
@@ -377,7 +397,7 @@ export function ReportBuilder() {
           </label>
           <label className="field">
             <span>Key notes (one per line)</span>
-            <textarea className="rb-textarea" value={notesEdit ?? report.notes.join('\n')} onChange={(e) => setNotesEdit(e.target.value)} />
+            <textarea className="rb-textarea" value={notesEdit ?? autoNotes.join('\n')} onChange={(e) => setNotesEdit(e.target.value)} />
           </label>
           {(summaryEdit !== null || notesEdit !== null) && (
             <button
@@ -453,6 +473,7 @@ export function ReportBuilder() {
                 highlights={s.highlights.filter((h) => h.title || h.body)}
                 showGlance={s.showGlance}
                 generatedAt={generatedAt}
+                markNew={s.markNew === 'auto'}
               />
             </div>
           </div>
