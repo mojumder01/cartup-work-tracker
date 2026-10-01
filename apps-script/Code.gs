@@ -153,14 +153,18 @@ function readTab_(name, headers) {
 
 /** GET ?action=list → { ok, projects, progress } (live data, no waiting for the sync). */
 function doGet(e) {
-  var action = (e && e.parameter && e.parameter.action) || 'list';
-  if (action === 'ping') {
-    var sheet = { ok: true, error: null };
-    try { ss_(); } catch (err) { sheet = { ok: false, error: String(err && err.message ? err.message : err) }; }
-    return json_({ ok: true, sync: !!github_(), sheet: sheet.ok, sheetError: sheet.error, account: account_() });
+  try {
+    var action = (e && e.parameter && e.parameter.action) || 'list';
+    if (action === 'ping') {
+      var sheet = { ok: true, error: null };
+      try { ss_(); } catch (err) { sheet = { ok: false, error: String(err && err.message ? err.message : err) }; }
+      return json_({ ok: true, sync: !!github_(), sheet: sheet.ok, sheetError: sheet.error, account: account_() });
+    }
+    if (action === 'syncStatus') return json_(syncStatus_());
+    return json_({ ok: true, projects: readTab_(PROJECTS_TAB, PROJECT_HEADERS), progress: readTab_(PROGRESS_TAB, PROGRESS_HEADERS) });
+  } catch (err) {
+    return json_({ ok: false, error: String(err && err.message ? err.message : err) });
   }
-  if (action === 'syncStatus') return json_(syncStatus_());
-  return json_({ ok: true, projects: readTab_(PROJECTS_TAB, PROJECT_HEADERS), progress: readTab_(PROGRESS_TAB, PROGRESS_HEADERS) });
 }
 
 // ---- validation helpers -------------------------------------------------
@@ -253,8 +257,8 @@ function appendLogs_(list, now) {
  */
 function doPost(e) {
   var lock = LockService.getScriptLock();
-  lock.waitLock(20000);
   try {
+    lock.waitLock(20000);
     var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     var tz = Session.getScriptTimeZone();
     var now = Utilities.formatDate(new Date(), tz, "yyyy-MM-dd'T'HH:mm:ss");

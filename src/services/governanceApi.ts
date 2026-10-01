@@ -6,6 +6,7 @@
  * involved: the script runs as the sheet owner and validates every field.
  */
 import type { CellValue } from '../types';
+import { readAppsScriptJson } from './appsScriptResponse';
 
 type Row = Record<string, CellValue>;
 
@@ -21,9 +22,9 @@ async function call<T>(url: string, init?: RequestInit): Promise<T> {
   if (!res.ok) throw new GovernanceApiError(`The Governance sheet service returned HTTP ${res.status}.`);
   let json: { ok?: boolean; error?: string } & T;
   try {
-    json = await res.json();
-  } catch {
-    throw new GovernanceApiError('The Governance sheet service did not return valid data. Is the Apps Script deployed as a Web app with access "Anyone"?');
+    json = await readAppsScriptJson<{ ok?: boolean; error?: string } & T>(res);
+  } catch (e) {
+    throw new GovernanceApiError((e as Error).message);
   }
   if (json.ok === false) throw new GovernanceApiError(json.error || 'The change was rejected by the Governance sheet.');
   return json;

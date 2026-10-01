@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BUILD } from '../utils/buildInfo';
+import { readAppsScriptJson } from '../services/appsScriptResponse';
 
 export type SyncPhase = 'idle' | 'starting' | 'waiting' | 'done' | 'error';
 
@@ -41,13 +42,13 @@ export function useSync(appsScriptUrl: string | null | undefined, updatedAt: str
     setMessage('Asking Google Sheets sync to start…');
     try {
       const res = await fetch(appsScriptUrl, { method: 'POST', body: JSON.stringify({ action: 'triggerSync' }), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
-      const json = (await res.json()) as { ok: boolean; error?: string; alreadyRunning?: boolean };
+      const json = await readAppsScriptJson<{ ok: boolean; error?: string; alreadyRunning?: boolean }>(res);
       if (!json.ok) throw new Error(json.error || 'The update could not be started.');
       setPhase('waiting');
       setMessage(json.alreadyRunning ? 'An update is already running — waiting for it to finish…' : 'Reading Google Sheets and publishing… usually 1–2 minutes.');
     } catch (e) {
       setPhase('error');
-      setMessage(`${(e as Error).message} You can also start it on GitHub: Actions → Run workflow.`);
+      setMessage(`${(e as Error).message} Meanwhile you can start it on GitHub: Actions → Run workflow (if a new run already appears there, the page will still update — click ↻ in a minute).`);
     }
   }, [appsScriptUrl, updatedAt, actionsUrl]);
 
