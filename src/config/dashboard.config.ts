@@ -11,11 +11,11 @@ export const dashboardConfig = {
   /** Where the dashboard loads its data from (relative to the site root). */
   dataUrl: 'data/data.json',
 
-  /** Browser re-checks data.json on this interval. Viewers can change it in Settings. */
-  autoRefreshMinutes: 5,
+  /** Browser re-checks data.json on this interval (0 = off; data is updated manually). Viewers can change it in Settings. */
+  autoRefreshMinutes: 0,
 
-  /** Show a warning banner when the published data is older than this. */
-  staleAfterMinutes: 90,
+  /** Warn when the published data is older than this many minutes (0 = never; updates are manual). */
+  staleAfterMinutes: 0,
 
   /** First day of the week for "This Week" (0 = Sunday, matches Google Sheets WEEKNUM default). */
   weekStartsOn: 0 as 0 | 1 | 2 | 3 | 4 | 5 | 6,

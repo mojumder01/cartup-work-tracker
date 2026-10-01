@@ -477,6 +477,7 @@ function ProjectDrawer({ project, stats, onClose, onEdit }: { project: Project; 
 
 export default function GovProjectsPage() {
   const g = useGovernance();
+  const { navigate } = useApp();
   const { projects, logs, writeUrl } = g;
   const [show, setShow] = useState<'active' | 'done' | 'all'>('active');
   const [person, setPerson] = useState('');
@@ -508,8 +509,10 @@ export default function GovProjectsPage() {
     <>
       {!writeUrl && (
         <Banner tone="warn">
-          <b>Read-only:</b> project assigning is not switched on yet. Deploy <code>apps-script/Code.gs</code> in the Governance sheet and add its Web app URL as the GitHub
-          variable <code>GOVERNANCE_APPS_SCRIPT_URL</code> (steps in the README). Until then this page shows the “Projects” tabs from the last sync.
+          <b>Read-only:</b> project assigning is not switched on yet. It needs the one-time Apps Script setup (about 5 minutes).{' '}
+          <button type="button" className="btn btn-sm" onClick={() => navigate('settings')}>
+            Open the setup guide →
+          </button>
         </Banner>
       )}
       {g.liveError && <Banner tone="bad">{g.liveError} Showing the last synced data.</Banner>}

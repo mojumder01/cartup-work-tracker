@@ -150,6 +150,26 @@ How each number is calculated (checked against the Week 37 vs Week 38 template):
 
 The **Product Governance** report is planned for a later update.
 
+## Data updates (manual)
+
+The dashboard no longer syncs automatically. To pull the latest Google Sheets data, click **Update data** (top right). The Apps Script starts the GitHub Action, and the page reloads itself when the new data is published, usually after 1–2 minutes. Without the Apps Script token the button opens **Actions → Run workflow** on GitHub instead. "Data from Google Sheets: …" shows when the data was last read. The small ↻ button only re-reads the already-published data.
+
+To go back to automatic syncing, add a `schedule:` block to `.github/workflows/deploy.yml` (an example is in the file).
+
+## Google Sheets used
+
+| # | Spreadsheet | Tabs read | Used for |
+|---|---|---|---|
+| 1 | **Cartup Content Work Tracker** (`GOOGLE_SHEET_ID`) | `Work Sheet`, `KPI & Target`, `Admin portal QC import data`, optional `Team Members` | Every dashboard page, Individual Summary, KPI |
+| 2 | **Governance Wrork Tracker** (`config → governance`) | `Main`, `Projects`, `Project Progress` | Ad-Hoc Tasks, REVAMP Projects, Product Governance report |
+| 3 | **Catalogue Overall Performance** (variable `PERFORMANCE_SHEET_ID`) | `Daily Performance`, `Monthly Performance`, `KPI`, `Team`, `Import - ContentCommercial Work`, `Import - Retail Picks Upload…` | Daily / Monthly Performance report; Team tab "Resigned" = left the job |
+
+Each spreadsheet must be shared with the service-account email as **Viewer**. Settings → **Connections** shows which tabs were found.
+
+## Daily / Monthly Performance report
+
+**Reports → Daily / Monthly Performance** reproduces the *Daily Performance* and *Monthly Performance* tabs of the Catalogue Overall Performance sheet. It shows the summary (uploaded / pending, QC done / pending, images) and Production, QC and Visual tables with targets and Achieved %. The daily view also shows QC within 48h / 72h / older and Retail Picks. It was checked against the sheet's own values for 27 Sep 2026 and every number matched. Targets come from those tabs: the standard target of each section, with KPI-tab blanks meaning no target. It has PDF / Print (A4 landscape) and Excel export.
+
 ## Governance team tracker
 
 Two kinds of Governance work, both read from the **Governance Wrork Tracker** spreadsheet (`config/data-source.json → governance`):

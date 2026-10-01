@@ -12,7 +12,7 @@
  * People not listed anywhere are added automatically from the Work Sheet.
  */
 
-export type TeamId = 'Production' | 'Visual' | 'QC' | 'Other';
+export type TeamId = 'Production' | 'Visual' | 'QC' | 'Governance' | 'Other';
 
 export const TEAMS: { id: TeamId; label: string; role: string }[] = [
   { id: 'Production', label: 'Production · New Upload', role: 'Uploaded by' },

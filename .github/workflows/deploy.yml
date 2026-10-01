@@ -1,12 +1,10 @@
 name: Sync Google Sheet & Deploy
 
 on:
-  # How often the dashboard data is refreshed from Google Sheets.
-  # GitHub's minimum is every 5 minutes, and scheduled runs can start a few minutes late.
-  # To change the interval, edit this cron expression (UTC), e.g. '*/15 * * * *' or '0 * * * *'.
-  schedule:
-    - cron: '*/5 * * * *'
-  # "Run workflow" button in the Actions tab = manual refresh.
+  # Manual updates only: the dashboard's "Update data" button (through the Apps Script)
+  # or Actions → "Run workflow". To sync automatically again, add for example:
+  #   schedule:
+  #     - cron: '0 * * * *'   # every hour (UTC)
   workflow_dispatch:
   # Rebuild when dashboard code or config changes on the default branch.
   push:
@@ -43,6 +41,7 @@ jobs:
           GOVERNANCE_SHEET_ID: ${{ secrets.GOVERNANCE_SHEET_ID }}
           # Web app URL of apps-script/Code.gs (Settings → Secrets and variables → Actions → Variables).
           GOVERNANCE_APPS_SCRIPT_URL: ${{ vars.GOVERNANCE_APPS_SCRIPT_URL }}
+          PERFORMANCE_SHEET_ID: ${{ vars.PERFORMANCE_SHEET_ID }}
         run: node scripts/fetch-sheets.mjs
 
       - name: Validate generated data
