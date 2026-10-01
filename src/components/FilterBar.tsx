@@ -2,7 +2,7 @@ import { memo, useMemo, useState } from 'react';
 import { dashboardConfig } from '../config/dashboard.config';
 import { useApp } from '../hooks/AppContext';
 import { distinct } from '../utils/aggregate';
-import { activeFilterCount, DATE_PRESETS, recordMonth, type DatePreset } from '../utils/filters';
+import { activeFilterCount, DATE_PRESETS, recordMonth, resolveMonth, type DatePreset } from '../utils/filters';
 import { monthLabel } from '../utils/parse';
 import { fmtNum } from '../utils/format';
 import { Icon } from './Icon';
@@ -72,15 +72,16 @@ export const FilterBar = memo(function FilterBar({ showRecordsLink = true }: { s
     for (const c of cfg.filterColumns) if (dataset.has(c)) dims[c] = distinct(dataset.records, c);
     const people = new Set<string>();
     for (const c of cfg.employeeFilterColumns) if (dataset.has(c)) distinct(dataset.records, c).forEach((p) => people.add(p));
-    const months = new Set<string>();
+    const months = new Map<string, number>();
     for (const r of dataset.records) {
       const m = recordMonth(r);
-      if (m) months.add(m);
+      if (m) months.set(m, (months.get(m) ?? 0) + 1);
     }
     return {
       dims,
       people: [...people].sort((a, b) => a.localeCompare(b)),
-      months: [...months].sort().reverse(),
+      months: [...months.keys()].sort().reverse(),
+      monthCounts: months,
       dateBasis: cfg.dateBasisColumns.filter((c) => dataset.has(c)),
     };
   }, [dataset, cfg]);
@@ -106,7 +107,7 @@ export const FilterBar = memo(function FilterBar({ showRecordsLink = true }: { s
     chips.push({ label: `${filters.dateBasis}: ${p}${range}`, clear: () => setFilters((f) => ({ ...f, datePreset: 'all', dateFrom: '', dateTo: '' })) });
   }
   if (filters.month) {
-    const l = filters.month === '__current' ? 'Current month' : filters.month === '__previous' ? 'Previous month' : monthLabel(filters.month);
+    const l = filters.month === '__current' || filters.month === '__previous' ? `${filters.month === '__current' ? 'Current' : 'Previous'} (${monthLabel(resolveMonth(filters.month) as string)})` : monthLabel(filters.month);
     chips.push({ label: `Month: ${l}`, clear: () => setFilters((f) => ({ ...f, month: '' })) });
   }
   for (const [c, v] of Object.entries(filters.dims)) if (v) chips.push({ label: `${c}: ${v}`, clear: () => setDim(c, '') });
@@ -149,9 +150,11 @@ export const FilterBar = memo(function FilterBar({ showRecordsLink = true }: { s
           allLabel="All months"
           onChange={(v) => setFilters((f) => ({ ...f, month: v }))}
           options={[
-            { value: '__current', label: 'Current month' },
-            { value: '__previous', label: 'Previous month' },
-            ...options.months.map((m) => ({ value: m, label: monthLabel(m) })),
+            ...(['__current', '__previous'] as const).map((v) => {
+              const key = resolveMonth(v) as string;
+              return { value: v, label: `${v === '__current' ? 'Current' : 'Previous'} month — ${monthLabel(key)} (${(options.monthCounts.get(key) ?? 0).toLocaleString('en-US')} rows)` };
+            }),
+            ...options.months.map((m) => ({ value: m, label: `${monthLabel(m)} (${(options.monthCounts.get(m) ?? 0).toLocaleString('en-US')})` })),
           ]}
         />
         {primary.map(dimControl)}

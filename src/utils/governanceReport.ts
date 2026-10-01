@@ -44,6 +44,21 @@ export function isNewIn(p: Project, logs: ProgressLog[], cur: Period): boolean {
   return p.createdAt !== null && p.createdAt >= cur.start && p.createdAt < cur.end;
 }
 
+/** Report note + the notes typed in "Log progress" during the current period (oldest first, no duplicates). */
+function blockNote(p: Project, logs: ProgressLog[], cur: Period): string | undefined {
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  for (const l of logs.filter((x) => x.projectId === p.id && x.note && inRange(x, cur)).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))) {
+    const key = `${l.date}|${l.person}|${l.note}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const d = l.date ? new Date(`${l.date}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
+    lines.push(`• ${[d, l.person].filter(Boolean).join(' · ')}: ${l.note}`);
+  }
+  const all = [p.reportNote, ...lines].filter(Boolean);
+  return all.length ? all.join('\n') : undefined;
+}
+
 export function projectBlock(p: Project, logs: ProgressLog[], prev: Period, cur: Period): ReportBlock {
   const a = projectStats(p, logs, [prev.start, prev.end]);
   const b = projectStats(p, logs, [cur.start, cur.end]);
@@ -71,7 +86,7 @@ export function projectBlock(p: Project, logs: ProgressLog[], prev: Period, cur:
       rows,
       total: ['Grand Total', b.logs.length ? b.reviewed : null],
       deltaCol: false,
-      note: p.reportNote || undefined,
+      note: blockNote(p, logs, cur),
     };
   }
 
@@ -98,7 +113,7 @@ export function projectBlock(p: Project, logs: ProgressLog[], prev: Period, cur:
       ? ['Total', ...labels.map((k) => a[k.key]), ...labels.map((k) => b[k.key]), b.logs.length || a.logs.length ? b[last] - a[last] : null]
       : undefined,
     deltaCol: true,
-    note: p.reportNote || undefined,
+    note: blockNote(p, logs, cur),
   };
 }
 

@@ -21,7 +21,7 @@ import ReportsPage from './pages/ReportsPage';
 import PeoplePage from './pages/PeoplePage';
 import GovTasksPage from './pages/GovTasksPage';
 import GovProjectsPage from './pages/GovProjectsPage';
-import { GovernanceProvider } from './hooks/useGovernance';
+import { GovernanceProvider, localAppsScriptUrl } from './hooks/useGovernance';
 import SettingsPage, { type Theme } from './pages/SettingsPage';
 import { QcPage, UploadPage, VisualPage } from './pages/SectionPages';
 
@@ -86,7 +86,7 @@ export default function App() {
   const [refreshMinutes, setRefreshMinutes] = useLocalStorage('cartup.refreshMinutes', dashboardConfig.autoRefreshMinutes);
   const [theme, setTheme] = useLocalStorage<Theme>('cartup.theme', 'system');
   const { data, loading, error, checkedAt, refresh } = useDashboardData(refreshMinutes);
-  const sync = useSync(data?.appsScriptUrl ?? data?.governance?.writeUrl, data?.updatedAt ?? null, refresh);
+  const sync = useSync(localAppsScriptUrl() || data?.appsScriptUrl || data?.governance?.writeUrl, data?.updatedAt ?? null, refresh);
 
   useEffect(() => {
     const root = document.documentElement;

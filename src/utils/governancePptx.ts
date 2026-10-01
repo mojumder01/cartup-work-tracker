@@ -44,7 +44,7 @@ function blockHeight(b: ReportBlock, width: number): number {
   const titleLines = wrapLines(b.title + (b.tag ? ` · ${b.tag}` : ''), width * 0.85);
   const headLines = Math.max(...b.head.map((h, i) => h.split('\n').reduce((z, part) => z + wrapLines(part, i === 0 ? first : other), 0)));
   const body = [...(b.rows.length ? b.rows : [['']]), ...(b.total ? [b.total] : [])].reduce((z, r) => z + Math.max(ROW, wrapLines(fmt(r[0]), first) * 0.165 + 0.07), 0);
-  const noteLines = b.note ? wrapLines(b.note, width) : 0;
+  const noteLines = b.note ? wrapLines(b.note, width) + b.note.split('\n').length - 1 : 0;
   return titleLines * 0.22 + 0.1 + headLines * 0.16 + 0.1 + body + (noteLines ? noteLines * 0.17 + 0.12 : 0) + 0.14;
 }
 
@@ -145,6 +145,8 @@ export async function downloadGovernancePptx(input: PptxInput): Promise<void> {
         r.map((v, i) => ({ ...cell(v, i, b.deltaCol && i === n - 1), options: { ...cell(v, i, b.deltaCol && i === n - 1).options, fill: { color: ri % 2 ? ROSE : 'FFFFFF' } } })),
       ),
       ...(b.total ? [b.total.map((v, i) => ({ ...cell(v, i, b.deltaCol && i === n - 1, true), options: { ...cell(v, i, b.deltaCol && i === n - 1, true).options, fill: { color: ROSE_2 } } }))] : []),
+      // The note is the table's last row (one merged cell), so it always sits right under the table.
+      ...(b.note ? [[{ text: b.note, options: { colspan: n, italic: true, color: '444444', fill: { color: ROSE }, align: 'left' } }]] : []),
     ];
     slide!.addTable(rows as never, {
       x,
@@ -155,13 +157,15 @@ export async function downloadGovernancePptx(input: PptxInput): Promise<void> {
       fontFace: 'Calibri',
       border: { type: 'solid', pt: 0.5, color: ROSE_2 },
       margin: 0.03,
-      rowH: ROW,
+      // Per-row heights so a long note or a wrapped name gets its full height.
+      rowH: [
+        Math.max(...b.head.map((h) => h.split('\n').length)) * 0.16 + 0.1,
+        ...(b.rows.length ? b.rows : [['']]).map((r) => Math.max(ROW, wrapLines(fmt(r[0]), first) * 0.165 + 0.07)),
+        ...(b.total ? [ROW] : []),
+        ...(b.note ? [wrapLines(b.note, colW) * 0.17 + 0.12 + 0.17 * (b.note.split('\n').length - 1)] : []),
+      ],
       autoPage: false,
     });
-    if (b.note) {
-      const noteH = wrapLines(b.note, colW) * 0.17 + 0.1;
-      slide!.addText(b.note, { x, y: y + h - noteH - 0.14, w: colW, h: noteH, fontSize: 9, italic: true, color: '444444', fill: { color: ROSE }, valign: 'top' });
-    }
   }
 
   if (input.notes.length) {
