@@ -484,3 +484,9 @@ table.data tfoot td { font-weight: 700; background: var(--surface-2); position: 
   .gov-2col, .gov-stat-row { grid-template-columns: 1fr 1fr; }
   .gov-log-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* Manual update status */
+.sync-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px; border: 1px solid var(--border); background: var(--accent-soft); }
+.sync-banner span { flex: 1; }
+.sync-banner.done { background: var(--good-soft); }
+.sync-banner.error { background: var(--bad-soft); }

@@ -33,7 +33,22 @@ export interface DashboardData {
   team?: FlatTable | null;
   /** Governance team tracker (separate spreadsheet). */
   governance?: GovernanceData | null;
+  /** Catalogue Overall Performance spreadsheet (Daily / Monthly report). */
+  performance?: PerformanceData | null;
+  /** Apps Script web app URL (project writes + "Update data"). */
+  appsScriptUrl?: string | null;
   warnings: string[];
+}
+
+export interface PerformanceData {
+  spreadsheetTitle: string;
+  tabs: string[];
+  monthly: ReportTab | null;
+  daily: ReportTab | null;
+  kpi: ReportTab | null;
+  team: FlatTable | null;
+  commercial: FlatTable | null;
+  retail: FlatTable | null;
 }
 
 export interface GovernanceData {

@@ -43,7 +43,10 @@ export function AppProvider({ data, navigate, children }: { data: DashboardData;
   const [person, setPerson] = useState('');
   const search = useDebounce(filters.search, 180);
   const [rosterOverrides, setRosterOverrides] = useLocalStorage<RosterOverrides>('cartup.roster', {});
-  const roster = useMemo(() => buildRoster(dataset, kpi, data.team, rosterOverrides), [dataset, kpi, data.team, rosterOverrides]);
+  const roster = useMemo(
+    () => buildRoster(dataset, kpi, data.team, rosterOverrides, data.performance?.team),
+    [dataset, kpi, data.team, rosterOverrides, data.performance],
+  );
   const setRosterOverride = useCallback(
     (name: string, patch: RosterOverride | null) => {
       const next = { ...rosterOverrides };

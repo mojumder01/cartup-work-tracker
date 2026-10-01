@@ -11,6 +11,13 @@
  *
  * The script only touches two tabs it creates itself: "Projects" and
  * "Project Progress". The "Main" Ad-Hoc tab is never modified.
+ *
+ * Optional — "Update data" button on the dashboard:
+ *   Project Settings (gear) → Script Properties → add
+ *     GITHUB_TOKEN = a fine-grained GitHub token with access to ONLY the
+ *                    cartup-work-tracker repo, permission "Actions: Read and write"
+ *     GITHUB_REPO  = mojumder01/cartup-work-tracker
+ *   The token stays inside Google; the browser never sees it.
  */
 
 var PROJECTS_TAB = 'Projects';
@@ -67,7 +74,8 @@ function readTab_(name, headers) {
 /** GET ?action=list → { ok, projects, progress } (live data, no waiting for the sync). */
 function doGet(e) {
   var action = (e && e.parameter && e.parameter.action) || 'list';
-  if (action === 'ping') return json_({ ok: true });
+  if (action === 'ping') return json_({ ok: true, sync: !!github_() });
+  if (action === 'syncStatus') return json_(syncStatus_());
   return json_({ ok: true, projects: readTab_(PROJECTS_TAB, PROJECT_HEADERS), progress: readTab_(PROGRESS_TAB, PROGRESS_HEADERS) });
 }
 
@@ -131,6 +139,8 @@ function doPost(e) {
     var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     var tz = Session.getScriptTimeZone();
     var now = Utilities.formatDate(new Date(), tz, "yyyy-MM-dd'T'HH:mm:ss");
+
+    if (body.action === 'triggerSync') return json_(triggerSync_());
 
     if (body.action === 'createProject') {
       var p = body.project || {};
@@ -198,4 +208,46 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ---- "Update data" button: start the GitHub Action ------------------------
+
+function github_() {
+  var p = PropertiesService.getScriptProperties();
+  var token = p.getProperty('GITHUB_TOKEN');
+  var repo = p.getProperty('GITHUB_REPO');
+  if (!token || !repo) return null;
+  return { token: token, repo: repo, workflow: p.getProperty('GITHUB_WORKFLOW') || 'deploy.yml', ref: p.getProperty('GITHUB_REF') || 'main' };
+}
+
+function ghFetch_(gh, path, options) {
+  var opts = options || {};
+  opts.headers = { Authorization: 'Bearer ' + gh.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+  opts.muteHttpExceptions = true;
+  return UrlFetchApp.fetch('https://api.github.com/repos/' + gh.repo + path, opts);
+}
+
+function syncStatus_() {
+  var gh = github_();
+  if (!gh) return { ok: false, error: 'GITHUB_TOKEN / GITHUB_REPO script properties are not set.' };
+  var res = ghFetch_(gh, '/actions/workflows/' + gh.workflow + '/runs?per_page=1&branch=' + encodeURIComponent(gh.ref));
+  if (res.getResponseCode() !== 200) return { ok: false, error: 'GitHub returned HTTP ' + res.getResponseCode() };
+  var run = (JSON.parse(res.getContentText()).workflow_runs || [])[0];
+  return { ok: true, run: run ? { number: run.run_number, status: run.status, conclusion: run.conclusion, createdAt: run.created_at, url: run.html_url } : null };
+}
+
+function triggerSync_() {
+  var gh = github_();
+  if (!gh) return { ok: false, error: 'The Update button is not set up: add GITHUB_TOKEN and GITHUB_REPO in the Apps Script project properties.' };
+  // At most one start per 90 seconds, and never while a run is already going.
+  var cache = CacheService.getScriptCache();
+  if (cache.get('syncStarted')) return { ok: true, alreadyRunning: true };
+  var status = syncStatus_();
+  if (status.ok && status.run && status.run.status !== 'completed') return { ok: true, alreadyRunning: true, run: status.run };
+  var res = ghFetch_(gh, '/actions/workflows/' + gh.workflow + '/dispatches', {
+    method: 'post', contentType: 'application/json', payload: JSON.stringify({ ref: gh.ref }),
+  });
+  if (res.getResponseCode() !== 204) return { ok: false, error: 'GitHub refused to start the update (HTTP ' + res.getResponseCode() + '). Check the token permission "Actions: Read and write".' };
+  cache.put('syncStarted', '1', 90);
+  return { ok: true, started: true };
 }

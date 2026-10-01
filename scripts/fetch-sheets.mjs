@@ -17,6 +17,7 @@ import { DataSourceError, getAccessToken, parseServiceAccount } from './lib/goog
 import { batchGetTabs, getSpreadsheetInfo } from './lib/sheets-api.mjs';
 import { transformReportTab, transformWorkSheet } from './lib/transform.mjs';
 import { fetchGovernance } from './lib/governance.mjs';
+import { fetchPerformance } from './lib/performance.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT = resolve(root, process.env.DATA_OUTPUT ?? 'public/data/data.json');
@@ -87,6 +88,7 @@ async function main() {
   };
 
   const governance = await fetchGovernance(token, config, config.dateColumns, warnings);
+  const performance = await fetchPerformance(token, config, config.dateColumns, warnings);
 
   const data = {
     schemaVersion: 1,
@@ -108,6 +110,9 @@ async function main() {
     sellerQc: table(sellerQcTab, config.sellerQcColumns),
     team: table(teamTab, config.teamColumns),
     governance,
+    performance,
+    /** Apps Script web app (project writes + "Update data" button). */
+    appsScriptUrl: process.env.GOVERNANCE_APPS_SCRIPT_URL || config.governance?.appsScriptUrl || null,
     warnings,
   };
 

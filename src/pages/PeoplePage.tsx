@@ -6,12 +6,13 @@ import { rosterToTsv, type Person } from '../utils/roster';
 import { Banner, Card, Segmented } from '../components/ui';
 import { Icon } from '../components/Icon';
 
-const TEAM_OPTIONS: TeamId[] = ['Production', 'Visual', 'QC', 'Other'];
+const TEAM_OPTIONS: TeamId[] = ['Production', 'Visual', 'QC', 'Governance', 'Other'];
 const DAY = 86400000;
 
 const SOURCE_LABEL: Record<Person['source'], string> = {
   browser: 'Changed here',
   sheet: 'Team Members tab',
+  staff: 'Performance sheet · Team tab',
   default: 'Default list',
   auto: 'Found in Work Sheet',
 };

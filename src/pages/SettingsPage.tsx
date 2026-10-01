@@ -2,6 +2,7 @@ import { dashboardConfig } from '../config/dashboard.config';
 import { useApp } from '../hooks/AppContext';
 import { fmtDate, fmtNum } from '../utils/format';
 import { Banner, Card } from '../components/ui';
+import { ConnectionsCard } from '../components/ConnectionsCard';
 import { BUILD, builtAtLabel } from '../utils/buildInfo';
 
 export type Theme = 'system' | 'light' | 'dark';
@@ -21,6 +22,8 @@ export default function SettingsPage({ refreshMinutes, setRefreshMinutes, theme,
 
   return (
     <>
+      <ConnectionsCard />
+
       <Card title="Display preferences" subtitle="Saved in this browser only">
         <div className="filter-row" style={{ maxWidth: 720 }}>
           <label className="field">
@@ -61,7 +64,7 @@ export default function SettingsPage({ refreshMinutes, setRefreshMinutes, theme,
           </div>
         </div>
         <p className="muted" style={{ marginBottom: 0 }}>
-          Auto refresh re-reads the published snapshot. The snapshot itself is refreshed from Google Sheets by the scheduled GitHub Action — the browser never contacts Google directly.
+          Data is updated manually with <b>Update data</b> (top right). Auto refresh only re-reads the already-published snapshot; the browser never reads Google Sheets directly.
         </p>
       </Card>
 
