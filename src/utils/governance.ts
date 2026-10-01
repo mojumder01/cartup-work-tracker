@@ -1,4 +1,4 @@
-import { GOV_COLUMNS, PROGRESS_HEADERS, PROJECT_HEADERS, type GovField } from '../config/governance.config';
+import { GOV_COLUMNS, LAYOUT_HELP, REPORT_LAYOUTS, type GovField, type ReportLayout } from '../config/governance.config';
 import type { CellValue, FlatTable } from '../types';
 import { isBlank, parseDate, text, toNumber } from './parse';
 
@@ -101,6 +101,8 @@ export interface Project {
   name: string;
   workType: string;
   description: string;
+  /** One or more POCs (comma separated in the sheet). */
+  pocs: string[];
   poc: string;
   assignees: string[];
   totalSkus: number | null;
@@ -111,6 +113,14 @@ export interface Project {
   foundLabel: string;
   updatedAt: number | null;
   updatedBy: string;
+  /** Report block settings (Product Governance template). */
+  layout: ReportLayout;
+  lineHeader: string;
+  /** Rows of the report block, e.g. "Highlight & Description", "Category Shifting". Empty = one row for the whole project. */
+  lines: string[];
+  valueMode: 'Sum' | 'Latest';
+  reportNote: string;
+  showInReport: boolean;
   /** True while a change made in this browser is not yet confirmed by the sheet. */
   pending?: boolean;
 }
@@ -121,6 +131,8 @@ export interface ProgressLog {
   projectId: string;
   date: string;
   person: string;
+  /** Report row this entry belongs to ("" = whole project). */
+  line: string;
   reviewed: number;
   found: number;
   updated: number;
@@ -143,63 +155,125 @@ const isoDay = (v: CellValue): string => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+/** Header lookup that ignores case and extra spaces (tabs may be created by hand). */
+function picker(r: Row) {
+  const norm = (k: string) => k.toLowerCase().replace(/\s+/g, ' ').trim();
+  const m = new Map<string, CellValue>();
+  for (const [k, v] of Object.entries(r)) if (!m.has(norm(k))) m.set(norm(k), v);
+  return (name: string): CellValue => m.get(norm(name)) ?? null;
+}
+
+const splitList = (v: CellValue, sep: RegExp) =>
+  text(v)
+    .split(sep)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
 export function toProjects(rows: Row[]): Project[] {
-  const h = PROJECT_HEADERS;
   return rows
-    .filter((r) => text(r[h[0]]))
-    .map((r) => ({
-      id: text(r['Project ID']),
-      createdAt: parseDate(r['Created At']),
-      name: text(r['Project Name']) || text(r['Project ID']),
-      workType: text(r['Work Type']),
-      description: text(r['Description']),
-      poc: text(r['POC']),
-      assignees: text(r['Assignees']).split(/[,;]/).map((s) => s.trim()).filter(Boolean),
-      totalSkus: toNumber(r['Total SKUs']),
-      startDate: isoDay(r['Start Date']),
-      dueDate: isoDay(r['Due Date']),
-      status: text(r['Status']) || 'Planned',
-      priority: text(r['Priority']) || 'Medium',
-      foundLabel: text(r['Found Label']) || 'Issues found',
-      updatedAt: parseDate(r['Updated At']),
-      updatedBy: text(r['Updated By']),
-    }));
+    .map(picker)
+    .filter((g) => text(g('Project ID')))
+    .map((g) => {
+      const pocs = splitList(g('POC'), /[,;/]/);
+      const layoutText = text(g('Report Layout'));
+      const layout = (REPORT_LAYOUTS.find((l) => l.toLowerCase() === layoutText.toLowerCase()) ?? REPORT_LAYOUTS[0]) as ReportLayout;
+      return {
+        id: text(g('Project ID')),
+        createdAt: parseDate(g('Created At')),
+        name: text(g('Project Name')) || text(g('Project ID')),
+        workType: text(g('Work Type')),
+        description: text(g('Description')),
+        pocs,
+        poc: pocs.join(' / '),
+        assignees: splitList(g('Assignees'), /[,;]/),
+        totalSkus: toNumber(g('Total SKUs')),
+        startDate: isoDay(g('Start Date')),
+        dueDate: isoDay(g('Due Date')),
+        status: text(g('Status')) || 'Planned',
+        priority: text(g('Priority')) || 'Medium',
+        foundLabel: text(g('Found Label')) || 'Issues found',
+        updatedAt: parseDate(g('Updated At')),
+        updatedBy: text(g('Updated By')),
+        layout,
+        lineHeader: text(g('Line Header')) || LAYOUT_HELP[layout].lineHeader,
+        lines: splitList(g('Lines'), /[;\n]/),
+        valueMode: /^latest$/i.test(text(g('Value Mode'))) ? 'Latest' : 'Sum',
+        reportNote: text(g('Report Note')),
+        showInReport: !/^(no|false|0)$/i.test(text(g('Show In Report'))),
+      } satisfies Project;
+    });
 }
 
 export function toProgress(rows: Row[]): ProgressLog[] {
-  const h = PROGRESS_HEADERS;
   return rows
-    .filter((r) => text(r[h[0]]) && text(r['Project ID']))
-    .map((r) => ({
-      id: text(r['Log ID']),
-      timestamp: parseDate(r['Timestamp']),
-      projectId: text(r['Project ID']),
-      date: isoDay(r['Date']),
-      person: text(r['Person']),
-      reviewed: toNumber(r['Reviewed']) ?? 0,
-      found: toNumber(r['Found']) ?? 0,
-      updated: toNumber(r['Updated']) ?? 0,
-      note: text(r['Note']),
+    .map(picker)
+    .filter((g) => text(g('Log ID')) && text(g('Project ID')))
+    .map((g) => ({
+      id: text(g('Log ID')),
+      timestamp: parseDate(g('Timestamp')),
+      projectId: text(g('Project ID')),
+      date: isoDay(g('Date')),
+      person: text(g('Person')),
+      line: text(g('Line')),
+      reviewed: toNumber(g('Reviewed')) ?? 0,
+      found: toNumber(g('Found')) ?? 0,
+      updated: toNumber(g('Updated')) ?? 0,
+      note: text(g('Note')),
     }));
+}
+
+export interface LineStat {
+  line: string;
+  reviewed: number;
+  found: number;
+  updated: number;
+  /** Number of entries in the period. */
+  entries: number;
 }
 
 export interface ProjectStats {
   reviewed: number;
   found: number;
   updated: number;
-  /** Found − Updated (never negative). */
+  /** Found − Updated (never negative). Only meaningful for the Reviewed / Found / Updated layout. */
   pending: number;
   /** Reviewed ÷ Total SKUs × 100, null when total unknown. */
   progressPct: number | null;
-  /** Updated ÷ Found × 100. */
+  /** Updated ÷ Found × 100 (or ÷ Working for the Working / Updated layout). */
   fixPct: number | null;
   lastLog: string | null;
   logs: ProgressLog[];
+  /** One entry per report row, in the project's line order (extra lines found in the log are appended). */
+  lines: LineStat[];
   byPerson: { person: string; reviewed: number; found: number; updated: number; logs: number }[];
   overdue: boolean;
 }
 
 const dayMs = (iso: string) => (iso ? new Date(`${iso}T00:00:00`).getTime() : null);
+const byDate = (a: ProgressLog, b: ProgressLog) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.timestamp ?? 0) - (b.timestamp ?? 0));
+
+/** Per-line numbers: totals of the entries (Sum) or the most recent entry (Latest). */
+export function lineStats(p: Project, logs: ProgressLog[]): LineStat[] {
+  const known = p.lines.length ? p.lines : [''];
+  const canon = new Map(known.map((l) => [l.toLowerCase(), l]));
+  const out = new Map<string, LineStat>(known.map((l) => [l, { line: l, reviewed: 0, found: 0, updated: 0, entries: 0 }]));
+  for (const l of [...logs].sort(byDate)) {
+    const key = canon.get(l.line.toLowerCase()) ?? l.line;
+    let s = out.get(key);
+    if (!s) out.set(key, (s = { line: key, reviewed: 0, found: 0, updated: 0, entries: 0 }));
+    if (p.valueMode === 'Latest') {
+      s.reviewed = l.reviewed;
+      s.found = l.found;
+      s.updated = l.updated;
+    } else {
+      s.reviewed += l.reviewed;
+      s.found += l.found;
+      s.updated += l.updated;
+    }
+    s.entries++;
+  }
+  return [...out.values()];
+}
 
 export function projectStats(p: Project, logs: ProgressLog[], range?: [number, number]): ProjectStats {
   const mine = logs
@@ -209,8 +283,9 @@ export function projectStats(p: Project, logs: ProgressLog[], range?: [number, n
       const ms = dayMs(l.date) ?? l.timestamp;
       return ms !== null && ms >= range[0] && ms < range[1];
     })
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.timestamp ?? 0) - (b.timestamp ?? 0)));
-  const sum = (k: 'reviewed' | 'found' | 'updated') => mine.reduce((s, l) => s + l[k], 0);
+    .sort(byDate);
+  const lines = lineStats(p, mine);
+  const sum = (k: 'reviewed' | 'found' | 'updated') => lines.reduce((s, l) => s + l[k], 0);
   const reviewed = sum('reviewed');
   const found = sum('found');
   const updated = sum('updated');
@@ -226,18 +301,41 @@ export function projectStats(p: Project, logs: ProgressLog[], range?: [number, n
   }
   const due = dayMs(p.dueDate);
   const closed = /complete|cancel/i.test(p.status);
+  const base = p.layout === 'Working / Updated' ? reviewed : found;
   return {
     reviewed,
     found,
     updated,
-    pending: Math.max(0, found - updated),
+    pending: p.layout === 'Reviewed / Found / Updated' ? Math.max(0, found - updated) : p.layout === 'Working / Updated' ? Math.max(0, reviewed - updated) : 0,
     progressPct: p.totalSkus ? Math.min(100, (reviewed / p.totalSkus) * 100) : null,
-    fixPct: found ? (updated / found) * 100 : null,
+    fixPct: base ? (updated / base) * 100 : null,
     lastLog: mine.length ? mine[mine.length - 1].date : null,
     logs: mine,
+    lines,
     byPerson: [...people.values()].sort((a, b) => b.reviewed - a.reviewed),
     overdue: !closed && due !== null && due + 86400000 < Date.now(),
   };
+}
+
+/** Column labels for a project's numbers, by layout. */
+export function metricLabels(p: Project): { key: 'reviewed' | 'found' | 'updated'; label: string }[] {
+  switch (p.layout) {
+    case 'Working / Updated':
+      return [
+        { key: 'reviewed', label: p.foundLabel && p.foundLabel !== 'Issues found' ? p.foundLabel : 'Working' },
+        { key: 'updated', label: 'Updated' },
+      ];
+    case 'Count':
+      return [{ key: 'reviewed', label: p.foundLabel && p.foundLabel !== 'Issues found' ? p.foundLabel : 'Count' }];
+    case 'Status breakdown':
+      return [{ key: 'reviewed', label: p.foundLabel && p.foundLabel !== 'Issues found' ? p.foundLabel : 'Count of SKUs' }];
+    default:
+      return [
+        { key: 'reviewed', label: 'Reviewed' },
+        { key: 'found', label: p.foundLabel },
+        { key: 'updated', label: 'Updated' },
+      ];
+  }
 }
 
 /** New IDs are created in the browser so pending changes can be matched after the sync. */

@@ -38,5 +38,5 @@ const post = (url: string, body: unknown) =>
 
 export const createProject = (url: string, project: Row, by: string) => post(url, { action: 'createProject', project, by });
 export const updateProject = (url: string, id: string, changes: Row, by: string) => post(url, { action: 'updateProject', id, changes, by });
-export const logProgress = (url: string, log: Row) => post(url, { action: 'logProgress', log });
+export const logProgress = (url: string, logs: Row[]) => post(url, { action: 'logProgress', logs });
 export const deleteLog = (url: string, id: string) => post(url, { action: 'deleteLog', id });

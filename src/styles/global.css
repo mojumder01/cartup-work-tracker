@@ -473,13 +473,21 @@ table.data tfoot td { font-weight: 700; background: var(--surface-2); position: 
 .gov-card-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 8px; }
 .avatar-sm { width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: inline-grid; place-items: center; font-size: 11px; font-weight: 700; border: 2px solid var(--surface); margin-right: -6px; }
 .gov-drawer { width: min(680px, 100vw); }
-.gov-form { width: min(560px, 100vw); }
 .gov-form-body { display: flex; flex-direction: column; gap: 12px; padding-top: 14px; flex: 1; }
 .gov-form-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--border); }
 .gov-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .gov-stat-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; font-size: 13px; }
 .gov-log-form { display: flex; flex-direction: column; gap: 10px; }
-.gov-log-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.gov-log-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.gov-log-table td { vertical-align: middle; }
+.gov-log-table .input { height: 32px; width: 100%; max-width: 130px; text-align: right; margin-left: auto; display: block; }
+.gov-form { width: min(620px, 100vw); }
+.gov-form-section { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-top: 6px; }
+.gov-people { border: 1px solid var(--border); border-radius: var(--radius-sm); max-height: 260px; overflow: auto; }
+.gov-people-head, .gov-people-row { display: grid; grid-template-columns: 1fr 64px 76px; align-items: center; padding: 6px 10px; gap: 6px; font-size: 13px; }
+.gov-people-head { position: sticky; top: 0; background: var(--surface-2, var(--surface)); font-weight: 600; font-size: 12px; color: var(--ink-3); border-bottom: 1px solid var(--border); }
+.gov-people-head span:not(:first-child), .gov-people-row input { justify-self: center; }
+.gov-people-row + .gov-people-row { border-top: 1px solid var(--border); }
 @media (max-width: 720px) {
   .gov-2col, .gov-stat-row { grid-template-columns: 1fr 1fr; }
   .gov-log-grid { grid-template-columns: 1fr 1fr; }

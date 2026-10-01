@@ -46,11 +46,35 @@ export const PROJECT_WORK_TYPES = [
   'Top Search Keywords',
 ];
 
-/** Column headers of the tabs written by apps-script/Code.gs (keep in sync). */
+/**
+ * How a project is shown in the Product Governance report (one block per project).
+ *  - Reviewed / Found / Updated: SKUs reviewed, issues found, issues fixed.
+ *  - Working / Updated: e.g. "Highlight & Description — Working 39,848 · Updated 29,670".
+ *  - Count: one number per line, e.g. "Logo — Brand 3".
+ *  - Status breakdown: counts per status for the current period, e.g. Right / Wrong / Check Pending + Grand Total.
+ */
+export const REPORT_LAYOUTS = ['Reviewed / Found / Updated', 'Working / Updated', 'Count', 'Status breakdown'] as const;
+export type ReportLayout = (typeof REPORT_LAYOUTS)[number];
+
+export const LAYOUT_HELP: Record<ReportLayout, { lineHeader: string; example: string; fields: ('reviewed' | 'found' | 'updated')[] }> = {
+  'Reviewed / Found / Updated': { lineHeader: 'Work Type', example: '', fields: ['reviewed', 'found', 'updated'] },
+  'Working / Updated': { lineHeader: 'Work Type', example: 'Highlight & Description; Category Shifting', fields: ['reviewed', 'updated'] },
+  Count: { lineHeader: 'Metric', example: 'Brand Auth. — Seller Count; Logo — Brand; Logo — Category', fields: ['reviewed'] },
+  'Status breakdown': { lineHeader: 'Category Status', example: 'Right Category; Wrong Category; Check Pending', fields: ['reviewed'] },
+};
+
+/**
+ * Sum: numbers in a period are the total of the entries logged in it (daily work).
+ * Latest: each line shows the most recent entry in the period (running totals you copy from a tracker).
+ */
+export const VALUE_MODES = ['Sum', 'Latest'] as const;
+
+/** Column headers of the tabs written by apps-script/Code.gs (keep in sync). Columns are matched by name. */
 export const PROJECT_HEADERS = [
   'Project ID', 'Created At', 'Project Name', 'Work Type', 'Description', 'POC', 'Assignees',
   'Total SKUs', 'Start Date', 'Due Date', 'Status', 'Priority', 'Found Label', 'Updated At', 'Updated By',
+  'Report Layout', 'Line Header', 'Lines', 'Value Mode', 'Report Note', 'Show In Report',
 ] as const;
 export const PROGRESS_HEADERS = [
-  'Log ID', 'Timestamp', 'Project ID', 'Date', 'Person', 'Reviewed', 'Found', 'Updated', 'Note',
+  'Log ID', 'Timestamp', 'Project ID', 'Date', 'Person', 'Reviewed', 'Found', 'Updated', 'Note', 'Line',
 ] as const;
