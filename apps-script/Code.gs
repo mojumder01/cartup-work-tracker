@@ -47,13 +47,23 @@ function setup() {
   return 'Ready: ' + PROJECTS_TAB + ' (' + a.getLastColumn() + ' columns), ' + PROGRESS_TAB + ' (' + b.getLastColumn() + ' columns)';
 }
 
+function account_() {
+  try {
+    return Session.getEffectiveUser().getEmail() || 'this script\'s account';
+  } catch (e) {
+    return 'this script\'s account';
+  }
+}
+
 function ss_() {
   try {
     return SpreadsheetApp.openById(SPREADSHEET_ID);
   } catch (e) {
     var active = SpreadsheetApp.getActiveSpreadsheet();
     if (active) return active;
-    throw e;
+    throw new Error('The Apps Script runs as ' + account_() + ', and that account cannot open the Governance sheet. ' +
+      'Fix: share the Governance sheet with ' + account_() + ' as Editor (Share button), or create the script with the ' +
+      'sheet owner\'s account. Also check Deploy → Manage deployments → Execute as: Me.');
   }
 }
 
@@ -144,7 +154,11 @@ function readTab_(name, headers) {
 /** GET ?action=list → { ok, projects, progress } (live data, no waiting for the sync). */
 function doGet(e) {
   var action = (e && e.parameter && e.parameter.action) || 'list';
-  if (action === 'ping') return json_({ ok: true, sync: !!github_() });
+  if (action === 'ping') {
+    var sheet = { ok: true, error: null };
+    try { ss_(); } catch (err) { sheet = { ok: false, error: String(err && err.message ? err.message : err) }; }
+    return json_({ ok: true, sync: !!github_(), sheet: sheet.ok, sheetError: sheet.error, account: account_() });
+  }
   if (action === 'syncStatus') return json_(syncStatus_());
   return json_({ ok: true, projects: readTab_(PROJECTS_TAB, PROJECT_HEADERS), progress: readTab_(PROGRESS_TAB, PROGRESS_HEADERS) });
 }
