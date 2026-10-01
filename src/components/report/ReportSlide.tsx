@@ -15,6 +15,8 @@ interface Props {
   highlights: Highlight[];
   showGlance: boolean;
   generatedAt: number;
+  /** Show "New" for people with no activity in the previous period (otherwise the plain change). */
+  markNew?: boolean;
 }
 
 const Delta = ({ v, isNew }: { v: number | null; isNew?: boolean }) => {
@@ -24,7 +26,7 @@ const Delta = ({ v, isNew }: { v: number | null; isNew?: boolean }) => {
   return <b className={cls}>{v > 0 ? '+' : ''}{fmtNum(v)}</b>;
 };
 
-function SectionTable({ s, prevShort, curShort }: { s: ReportSection; prevShort: string; curShort: string }) {
+function SectionTable({ s, prevShort, curShort, markNew }: { s: ReportSection; prevShort: string; curShort: string; markNew: boolean }) {
   const cell = (nums: Record<string, number> | null, key: string) => (nums ? fmtNum(nums[key]) : '—');
   return (
     <div className="rs-block">
@@ -68,7 +70,7 @@ function SectionTable({ s, prevShort, curShort }: { s: ReportSection; prevShort:
                 <td key={`c-${c.key}`}>{cell(r.cur, c.key)}</td>
               ))}
               <td>
-                <Delta v={r.delta} isNew={r.isNew} />
+                <Delta v={r.delta} isNew={markNew && r.isNew} />
               </td>
             </tr>
           ))}
@@ -93,7 +95,7 @@ function SectionTable({ s, prevShort, curShort }: { s: ReportSection; prevShort:
   );
 }
 
-function GlanceValue({ prev, cur, lowerIsBetter }: { prev: number | null; cur: number | null; lowerIsBetter?: boolean }) {
+function GlanceValue({ prev, cur, lowerIsBetter, markNew }: { prev: number | null; cur: number | null; lowerIsBetter?: boolean; markNew: boolean }) {
   if (prev === null || cur === null) return <div className="rs-g-val">N/A</div>;
   const change = prev ? ((cur - prev) / prev) * 100 : null;
   const up = cur > prev;
@@ -108,13 +110,13 @@ function GlanceValue({ prev, cur, lowerIsBetter }: { prev: number | null; cur: n
         </span>
       )}
       {cur === prev && <span className="rs-g-flat">• 0.0%</span>}
-      {change === null && cur !== prev && <span className="rs-g-good">New</span>}
+      {change === null && cur !== prev && markNew && <span className="rs-g-good">New</span>}
     </div>
   );
 }
 
 /** 16:9 slide in the Cartup "Individual Summary" template style. Always light (it is a print document). */
-export const ReportSlide = forwardRef<HTMLDivElement, Props>(function ReportSlide({ report, summary, notes, highlights, showGlance, generatedAt }, ref) {
+export const ReportSlide = forwardRef<HTMLDivElement, Props>(function ReportSlide({ report, summary, notes, highlights, showGlance, generatedAt, markNew = false }, ref) {
   const { prev, cur } = report;
   const sections = Object.fromEntries(report.sections.map((s) => [s.team, s]));
   const left = [sections.Production, sections.Visual].filter(Boolean) as ReportSection[];
@@ -138,7 +140,7 @@ export const ReportSlide = forwardRef<HTMLDivElement, Props>(function ReportSlid
       <div className={`rs-grid ${showGlance ? '' : 'no-glance'} ${middle.length || notes.length || highlights.length ? '' : 'no-middle'}`}>
         <div className="rs-col">
           {left.map((s) => (
-            <SectionTable key={s.team} s={s} prevShort={prev.short} curShort={cur.short} />
+            <SectionTable key={s.team} s={s} prevShort={prev.short} curShort={cur.short} markNew={markNew} />
           ))}
           {highlights.slice(0, Math.ceil(highlights.length / 2)).map((h, i) => (
             <div className="rs-note rs-note-gold" key={`hl-${i}`}>
@@ -149,7 +151,7 @@ export const ReportSlide = forwardRef<HTMLDivElement, Props>(function ReportSlid
         </div>
         <div className="rs-col">
           {middle.map((s) => (
-            <SectionTable key={s.team} s={s} prevShort={prev.short} curShort={cur.short} />
+            <SectionTable key={s.team} s={s} prevShort={prev.short} curShort={cur.short} markNew={markNew} />
           ))}
           {highlights.slice(Math.ceil(highlights.length / 2)).map((h, i) => (
             <div className="rs-note rs-note-gold" key={`hr-${i}`}>
@@ -177,7 +179,7 @@ export const ReportSlide = forwardRef<HTMLDivElement, Props>(function ReportSlid
             {report.glance.map((g) => (
               <div className="rs-g-item" key={g.label}>
                 <div className="rs-g-label">{g.label}</div>
-                <GlanceValue prev={g.prev} cur={g.cur} lowerIsBetter={g.lowerIsBetter} />
+                <GlanceValue prev={g.prev} cur={g.cur} lowerIsBetter={g.lowerIsBetter} markNew={markNew} />
               </div>
             ))}
             <div className="rs-g-range">

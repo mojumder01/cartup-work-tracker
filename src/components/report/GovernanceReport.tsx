@@ -20,11 +20,13 @@ interface Settings {
   showAdhocPerson: boolean;
   /** Project id → shown (overrides the default selection). */
   pick: Record<string, boolean>;
+  /** "NEW" labels: off (show the number) or automatic (first activity in the period). Per-block ticks always win. */
+  markNew: 'off' | 'auto';
 }
-const DEFAULTS: Settings = { periodType: 'week', periodStart: null, compare: 'previous', showGlance: true, showAdhocType: true, showAdhocPerson: false, pick: {} };
+const DEFAULTS: Settings = { periodType: 'week', periodStart: null, compare: 'previous', showGlance: true, showAdhocType: true, showAdhocPerson: false, pick: {}, markNew: 'off' };
 
 /** Manual text edits for one block (title / note), kept in this browser. */
-type BlockEdits = Record<string, { title?: string; note?: string }>;
+type BlockEdits = Record<string, { title?: string; note?: string; newTag?: boolean }>;
 
 const fmtCell = (v: Cell) => (v === null || v === '' ? '—' : typeof v === 'number' ? fmtNum(v) : v);
 
@@ -157,7 +159,7 @@ export function GovernanceReport() {
       else if (a.logs.length && !b.logs.length && !/complete|cancel/i.test(p.status)) notes.push(`${p.name}: nothing logged in ${cur.label}.`);
     });
     const newOnes = chosen.filter((p) => isNewIn(p, logs, cur)).map((p) => p.name);
-    if (newOnes.length) notes.push(`New in ${cur.label}: ${newOnes.join(', ')}.`);
+    if (newOnes.length && s.markNew === 'auto') notes.push(`New in ${cur.label}: ${newOnes.join(', ')}.`);
     const done = projects.filter((p) => /complete/i.test(p.status) && p.updatedAt !== null && p.updatedAt >= cur.start && p.updatedAt < cur.end).map((p) => p.name);
     if (done.length) notes.push(`Completed in ${cur.label}: ${done.join(', ')}.`);
     if (tp || tc) notes.push(`Ad-Hoc volume ${fmtNum(tp)} → ${fmtNum(tc)} SKUs${pctText(tp, tc)} across ${fmtNum(tasksPrev.length)} → ${fmtNum(tasksCur.length)} tasks.`);
@@ -166,7 +168,7 @@ export function GovernanceReport() {
       ? `Our revamp tasks for ${done.join(', ')} have been completed. ${chosen.length} REVAMP project(s) reported for ${cur.label}.`
       : `${chosen.length} REVAMP project(s) reported for ${cur.label}; Governance handled ${fmtNum(tc)} SKUs in ${fmtNum(tasksCur.length)} Ad-Hoc tasks (${fmtNum(tp)} in ${prev.label}).`;
     return { byType, byPerson, projBlocks, glance, notes, summary };
-  }, [adhoc, projects, logs, prev, cur, s.pick]);
+  }, [adhoc, projects, logs, prev, cur, s.pick, s.markNew]);
 
   const blocks: ReportBlock[] = useMemo(() => {
     const list = [...model.projBlocks];
@@ -174,9 +176,13 @@ export function GovernanceReport() {
     if (s.showAdhocPerson) list.push(model.byPerson);
     return list.map((b) => {
       const e = edits[b.id];
-      return { ...b, title: e?.title ?? b.title, note: e?.note !== undefined ? e.note || undefined : b.note };
+      const n = b.head.length;
+      // With automatic labels off, "New" in the change column becomes the plain number (current − 0).
+      const plain = (r: Cell[]) => (s.markNew === 'off' && b.deltaCol && r[n - 1] === 'New' ? [...r.slice(0, n - 1), typeof r[n - 2] === 'number' ? r[n - 2] : 0] : r);
+      const tag = e?.newTag !== undefined ? (e.newTag ? 'NEW' : undefined) : s.markNew === 'auto' ? b.tag : undefined;
+      return { ...b, rows: b.rows.map(plain), tag, title: e?.title ?? b.title, note: e?.note !== undefined ? e.note || undefined : b.note };
     });
-  }, [model, s.showAdhocType, s.showAdhocPerson, edits]);
+  }, [model, s.showAdhocType, s.showAdhocPerson, s.markNew, edits]);
 
   const summary = summaryEdit ?? model.summary;
   const notes = (notesEdit ?? model.notes.join('\n')).split('\n').map((x) => x.trim()).filter(Boolean);
@@ -328,6 +334,26 @@ export function GovernanceReport() {
                 <span>Note under the table</span>
                 <textarea className="rb-textarea" style={{ minHeight: 60 }} value={editBlock.note ?? ''} onChange={(e) => setEdits({ ...edits, [auto.id]: { ...edits[auto.id], note: e.target.value } })} />
               </label>
+              {!auto.id.startsWith('adhoc-') && (
+                <label className="field">
+                  <span>NEW label on this block</span>
+                  <select
+                    className="select"
+                    value={edits[auto.id]?.newTag === undefined ? 'default' : edits[auto.id]?.newTag ? 'yes' : 'no'}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      const cur0 = { ...edits[auto.id] };
+                      if (v === 'default') delete cur0.newTag;
+                      else cur0.newTag = v === 'yes';
+                      setEdits({ ...edits, [auto.id]: cur0 });
+                    }}
+                  >
+                    <option value="default">Follow the “NEW” labels setting</option>
+                    <option value="yes">Show NEW</option>
+                    <option value="no">Never show NEW</option>
+                  </select>
+                </label>
+              )}
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="button" className="btn btn-sm" onClick={() => setEditing(null)}>
                   Done
@@ -352,6 +378,21 @@ export function GovernanceReport() {
             </div>
           )}
 
+          <div className="rb-group">
+            <span className="rb-label">“NEW” labels</span>
+            <Segmented
+              label="NEW labels"
+              value={s.markNew}
+              onChange={(v) => update({ markNew: v })}
+              options={[
+                { id: 'off', label: 'Off (show numbers)' },
+                { id: 'auto', label: 'Automatic' },
+              ]}
+            />
+            <span className="muted" style={{ fontSize: 12 }}>
+              Automatic marks anything with no entries in {prev.label}. Mark a single project as NEW with “edit text”.
+            </span>
+          </div>
           <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input type="checkbox" checked={s.showGlance} onChange={(e) => update({ showGlance: e.target.checked })} />
             Show “At a Glance” panel
