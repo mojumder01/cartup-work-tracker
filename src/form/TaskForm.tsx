@@ -171,9 +171,16 @@ export function TaskForm() {
     if (f.date !== isoDay(job['Upload date'])) c['Upload date'] = f.date;
     if (!locked.has('Upload Month') && f.month !== monthOf(isoDay(job['Upload Month']))) c['Upload Month'] = f.month;
     if (f.comments.trim() !== text(job.Comments).trim()) c.Comments = f.comments.trim();
+    // Number of SKU follows the Uploaded SKU Count the employee enters (both sheets).
+    const sku = f.sku.trim().replace(/,/g, '');
+    if (sku && Number(sku) !== total && !locked.has('Number of SKU')) c['Number of SKU'] = sku;
+    // Upload done → QC Status "QC Pending" (both sheets), unless QC already has a status for this upload.
+    const row = job as unknown as Record<string, Cell>;
+    const qc = text(row['QC Status']);
+    if (f.status === 'Done' && qc !== 'QC Pending' && (text(job.Status) !== 'Done' || !qc) && !locked.has('QC Status')) c['QC Status'] = 'QC Pending';
     return c;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job, f, lookup]);
+  }, [job, f, lookup, total]);
 
   const problems: string[] = [];
   const warnings: string[] = [];
@@ -183,10 +190,9 @@ export function TaskForm() {
     if (f.status === 'Done' && !f.date) problems.push('Status “Done” needs an Upload date.');
     if (f.status === 'Done' && !f.sku.trim()) problems.push('Status “Done” needs the Uploaded SKU Count.');
     if (f.date && f.date > todayIso()) problems.push('Upload date cannot be in the future.');
-    if (skuNum !== null && total !== null && skuNum > total) warnings.push(`Uploaded SKU Count (${skuNum.toLocaleString('en-US')}) is more than Number of SKU (${total.toLocaleString('en-US')}).`);
-    const rejNum = f.rejected.trim() ? Number(f.rejected.replace(/,/g, '')) : null;
-    if (rejNum !== null && total !== null && rejNum + (skuNum ?? 0) > total)
-      warnings.push(`Uploaded + Rejected SKU Count (${(rejNum + (skuNum ?? 0)).toLocaleString('en-US')}) is more than Number of SKU (${total.toLocaleString('en-US')}).`);
+    if (skuNum !== null && changes['Number of SKU'])
+      warnings.push(`Number of SKU will be set to ${skuNum.toLocaleString('en-US')} (was ${total === null ? 'empty' : total.toLocaleString('en-US')}) — the Uploaded SKU Count you entered.`);
+    if (changes['QC Status']) warnings.push('QC Status will be set to “QC Pending” (upload done).');
     const owner = text(job['Uploaded by']);
     if (owner && who && owner.toLowerCase() !== who.trim().toLowerCase()) warnings.push(`This job is assigned to ${owner}. Your update will be recorded under your name in the Form Log.`);
     if (!owner && who.trim()) warnings.push(`Nobody is set as “Uploaded by” yet — it will be set to ${who.trim()}.`);
@@ -205,7 +211,7 @@ export function TaskForm() {
       const jobRow = job as unknown as Record<string, Cell>;
       const set: Record<string, WriteValue> = {};
       for (const [k, v] of Object.entries(changes)) {
-        set[k] = k === 'Upload date' ? asDate(v) : k === 'Upload Month' ? asMonth(v) : k === 'Uploaded SKU Count' || k === 'Rejected SKU Count' ? (v === '' ? '' : Number(v)) : v;
+        set[k] = k === 'Upload date' ? asDate(v) : k === 'Upload Month' ? asMonth(v) : k === 'Uploaded SKU Count' || k === 'Rejected SKU Count' || k === 'Number of SKU' ? (v === '' ? '' : Number(v)) : v;
       }
       const fields = Object.keys(set);
       // Credit the work to the person submitting when nobody is set as uploader yet.
@@ -237,7 +243,7 @@ export function TaskForm() {
             /* keep the generic text */
           }
           const tail = url.match(/\/s\/([\w-]+)\/exec/)?.[1]?.slice(-8) ?? '';
-          mirrorText = ` Content/Commercial sheet NOT updated — the Apps Script Web app …${tail} runs ${ver}; 2.1.5 is needed. In Apps Script: paste the new Code.gs → Save → Deploy → Manage deployments → ✏️ → Version: New version → Deploy.`;
+          mirrorText = ` Content/Commercial sheet NOT updated — the Apps Script Web app …${tail} runs ${ver}; 2.1.6 is needed. In Apps Script: paste the new Code.gs → Save → Deploy → Manage deployments → ✏️ → Version: New version → Deploy.`;
         } else if (!m.ok) {
           mirrorWarn = true;
           mirrorText = ` Content/Commercial sheet NOT updated: ${m.reason}.`;
