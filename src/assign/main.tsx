@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { AssignForm } from './AssignForm';
 import '../styles/global.css';
 import '../form/form.css';
+import './assign.css';
 
 try {
   const theme = JSON.parse(localStorage.getItem('cartup.theme') ?? '"system"');
