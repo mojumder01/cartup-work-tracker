@@ -53,7 +53,7 @@ export const PROJECT_WORK_TYPES = [
  *  - Count: one number per line, e.g. "Logo — Brand 3".
  *  - Status breakdown: counts per status for the current period, e.g. Right / Wrong / Check Pending + Grand Total.
  */
-export const REPORT_LAYOUTS = ['Reviewed / Found / Updated', 'Working / Updated', 'Count', 'Status breakdown'] as const;
+export const REPORT_LAYOUTS = ['Reviewed / Found / Updated', 'Working / Updated', 'Count', 'Status breakdown', 'Custom table'] as const;
 export type ReportLayout = (typeof REPORT_LAYOUTS)[number];
 
 export const LAYOUT_HELP: Record<ReportLayout, { lineHeader: string; example: string; fields: ('reviewed' | 'found' | 'updated')[] }> = {
@@ -61,7 +61,12 @@ export const LAYOUT_HELP: Record<ReportLayout, { lineHeader: string; example: st
   'Working / Updated': { lineHeader: 'Work Type', example: 'Highlight & Description; Category Shifting', fields: ['reviewed', 'updated'] },
   Count: { lineHeader: 'Metric', example: 'Brand Auth. — Seller Count; Logo — Brand; Logo — Category', fields: ['reviewed'] },
   'Status breakdown': { lineHeader: 'Category Status', example: 'Right Category; Wrong Category; Check Pending', fields: ['reviewed'] },
+  'Custom table': { lineHeader: 'Name', example: '', fields: [] },
 };
+
+/** Which report(s) a project appears in. */
+export const PROJECT_REPORTS = ['Governance', 'Individual Summary', 'Both'] as const;
+export type ProjectReports = (typeof PROJECT_REPORTS)[number];
 
 /**
  * Sum: numbers in a period are the total of the entries logged in it (daily work).
@@ -74,7 +79,8 @@ export const PROJECT_HEADERS = [
   'Project ID', 'Created At', 'Project Name', 'Work Type', 'Description', 'POC', 'Assignees',
   'Total SKUs', 'Start Date', 'Due Date', 'Status', 'Priority', 'Found Label', 'Updated At', 'Updated By',
   'Report Layout', 'Line Header', 'Lines', 'Value Mode', 'Report Note', 'Show In Report',
+  'Columns', 'Rows', 'Compare', 'Show Delta', 'Total Label', 'Target', 'Reports', 'Glance',
 ] as const;
 export const PROGRESS_HEADERS = [
-  'Log ID', 'Timestamp', 'Project ID', 'Date', 'Person', 'Reviewed', 'Found', 'Updated', 'Note', 'Line',
+  'Log ID', 'Timestamp', 'Project ID', 'Date', 'Person', 'Reviewed', 'Found', 'Updated', 'Note', 'Line', 'Values',
 ] as const;

@@ -51,6 +51,8 @@ export async function getSpreadsheetInfo(spreadsheetId, token) {
   return {
     title: json.properties?.title ?? '',
     tabs: (json.sheets ?? []).map((s) => s.properties.title),
+    /** Tab title by gid (the number after #gid= in a sheet link). */
+    gids: Object.fromEntries((json.sheets ?? []).map((s) => [String(s.properties.sheetId), s.properties.title])),
   };
 }
 

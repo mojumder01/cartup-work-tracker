@@ -11,6 +11,8 @@ import { exportXlsx, exportXlsxSheets, stamp, type ExportRow } from '../../utils
 import { buildEmployeeDetail } from '../../utils/employeeDetail';
 import { checkCredit, creditRule } from '../../utils/credit';
 import { useGovernance } from '../../hooks/useGovernance';
+import { defaultIncluded, inReport, projectBlock, projectGlance, type Cell, type ReportBlock } from '../../utils/governanceReport';
+import type { GlanceItem } from '../../utils/individualReport';
 import { Card, Segmented } from '../ui';
 import { Icon } from '../Icon';
 import { ReportSlide, type Highlight } from './ReportSlide';
@@ -28,6 +30,10 @@ interface Settings {
   highlights: Highlight[];
   /** "New" labels for people with no work in the previous period. */
   markNew: 'off' | 'auto';
+  /** Add the Retail [Picks] Upload Request sheet as its own table. */
+  includeRetail: boolean;
+  /** Explicit on/off per project table; missing = automatic (open or active in the two periods). */
+  projects: Record<string, boolean>;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -39,6 +45,8 @@ const DEFAULT_SETTINGS: Settings = {
   showGlance: true,
   highlights: [],
   markNew: 'off',
+  includeRetail: true,
+  projects: {},
 };
 
 const ROLE: Record<string, string> = { Production: C.uploadedBy, Visual: C.visualEditor, QC: C.qcBy };
@@ -170,9 +178,40 @@ export function ReportBuilder() {
         cur,
         teams: s.teams,
         people: Object.fromEntries(TEAMS.map((t) => [t.id, selected(t.id)])),
+        retail: data.extra?.retail ?? null,
+        includeRetail: s.includeRetail,
+        pendingQc: data.extra?.pendingQc ?? null,
       }),
-    [dataset, sellerQc, roster, prev, cur, s.teams, s.people, candidates],
+    [dataset, sellerQc, roster, prev, cur, s.teams, s.people, s.includeRetail, data.extra, candidates],
   );
+
+  // Project tables placed in this report ("Individual Summary" or "Both").
+  const myProjects = useMemo(() => gov.projects.filter((p) => inReport(p, 'Individual Summary')), [gov.projects]);
+  const projIncluded = (id: string) => {
+    const p = myProjects.find((x) => x.id === id)!;
+    return s.projects[id] ?? defaultIncluded(p, gov.logs, prev, cur);
+  };
+  const chosenProjects = myProjects
+    .slice()
+    .reverse()
+    .filter((p) => projIncluded(p.id));
+  const chosenKey = chosenProjects.map((p) => p.id).join();
+  const projBlocks: ReportBlock[] = useMemo(() => {
+    const n = (b: ReportBlock) => b.head.length;
+    // With automatic labels off, "New" in the change column becomes the plain number (current − 0).
+    const plain = (b: ReportBlock, r: Cell[]) =>
+      s.markNew === 'off' ? (b.deltaCol && r[n(b) - 1] === 'New' ? [...r.slice(0, n(b) - 1), typeof r[n(b) - 2] === 'number' ? r[n(b) - 2] : 0] : r) : r;
+    return chosenProjects.map((p) => {
+      const b = projectBlock(p, gov.logs, prev, cur);
+      return { ...b, rows: b.rows.map((r) => plain(b, r)), tag: s.markNew === 'auto' ? b.tag : undefined };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chosenKey, gov.logs, gov.projects, prev, cur, s.markNew]);
+  const glance: GlanceItem[] = useMemo(() => {
+    const extra = chosenProjects.map((p) => projectGlance(p, gov.logs, prev, cur)).filter((g): g is NonNullable<typeof g> => !!g);
+    return [...report.glance, ...extra];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report.glance, chosenKey, gov.logs, gov.projects, prev, cur]);
 
   // Reset hand-edited text when the report's scope changes.
   const scopeKey = `${periodKey(cur)}|${periodKey(prev)}|${s.teams.join()}|${JSON.stringify(s.people)}`;
@@ -237,8 +276,16 @@ export function ReportBuilder() {
       rows.push(['Total', ...sec.columns.map((c) => sec.total.prev[c.key]), ...sec.columns.map((c) => sec.total.cur[c.key]), sec.total.delta]);
       rows.push([]);
     }
+    for (const b of projBlocks) {
+      rows.push([b.tag ? `${b.title} · ${b.tag}` : b.title]);
+      rows.push(b.head.map((x) => x.replace('\n', ' ')));
+      b.rows.forEach((r) => rows.push(r));
+      if (b.total) rows.push(b.total);
+      if (b.note) rows.push([b.note]);
+      rows.push([]);
+    }
     rows.push(['At a Glance', prev.label, cur.label]);
-    report.glance.forEach((g) => rows.push([g.label, g.prev, g.cur]));
+    glance.forEach((g) => rows.push(g.text && (g.prev === null || g.cur === null) ? [g.label, null, g.text] : [g.label, g.prev, g.cur]));
     rows.push([]);
     rows.push(['Key Notes']);
     notes.forEach((n) => rows.push([n]));
@@ -386,6 +433,31 @@ export function ReportBuilder() {
             </span>
           </div>
 
+          {data.extra?.retail && (
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="checkbox" checked={s.includeRetail} onChange={(e) => update({ includeRetail: e.target.checked })} />
+              Include Retail [Picks] uploads (own table)
+            </label>
+          )}
+          {myProjects.length > 0 && (
+            <div className="rb-group">
+              <span className="rb-label">Project tables</span>
+              <span className="muted" style={{ fontSize: 12 }}>
+                Projects set to “Individual Summary” or “Both” on the REVAMP Projects page.
+              </span>
+              <div className="rb-checks" style={{ maxHeight: 200 }}>
+                {myProjects.map((p) => (
+                  <label key={p.id}>
+                    <input type="checkbox" checked={projIncluded(p.id)} onChange={(e) => update({ projects: { ...s.projects, [p.id]: e.target.checked } })} />
+                    <span style={{ flex: 1 }}>
+                      {p.name}
+                      <span className="meta"> · {p.layout}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input type="checkbox" checked={s.showGlance} onChange={(e) => update({ showGlance: e.target.checked })} />
             Show “At a Glance” panel
@@ -467,13 +539,14 @@ export function ReportBuilder() {
             <div className="report-scale" style={{ transform: `scale(${scale})` }}>
               <ReportSlide
                 ref={slideRef}
-                report={report}
+                report={{ ...report, glance }}
                 summary={summary}
                 notes={notes}
                 highlights={s.highlights.filter((h) => h.title || h.body)}
                 showGlance={s.showGlance}
                 generatedAt={generatedAt}
                 markNew={s.markNew === 'auto'}
+                blocks={projBlocks}
               />
             </div>
           </div>

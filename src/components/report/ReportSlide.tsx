@@ -2,6 +2,8 @@ import { forwardRef } from 'react';
 import type { IndividualReport, ReportSection } from '../../utils/individualReport';
 import { comparisonTitle } from '../../utils/periods';
 import { fmtDate, fmtNum } from '../../utils/format';
+import type { ReportBlock } from '../../utils/governanceReport';
+import { Block } from './ReportBlock';
 
 export interface Highlight {
   title: string;
@@ -17,6 +19,8 @@ interface Props {
   generatedAt: number;
   /** Show "New" for people with no activity in the previous period (otherwise the plain change). */
   markNew?: boolean;
+  /** Project tables set to appear in the Individual Summary. */
+  blocks?: ReportBlock[];
 }
 
 const Delta = ({ v, isNew }: { v: number | null; isNew?: boolean }) => {
@@ -116,10 +120,10 @@ function GlanceValue({ prev, cur, lowerIsBetter, markNew }: { prev: number | nul
 }
 
 /** 16:9 slide in the Cartup "Individual Summary" template style. Always light (it is a print document). */
-export const ReportSlide = forwardRef<HTMLDivElement, Props>(function ReportSlide({ report, summary, notes, highlights, showGlance, generatedAt, markNew = false }, ref) {
+export const ReportSlide = forwardRef<HTMLDivElement, Props>(function ReportSlide({ report, summary, notes, highlights, showGlance, generatedAt, markNew = false, blocks = [] }, ref) {
   const { prev, cur } = report;
-  const sections = Object.fromEntries(report.sections.map((s) => [s.team, s]));
-  const left = [sections.Production, sections.Visual].filter(Boolean) as ReportSection[];
+  const sections = Object.fromEntries(report.sections.map((s) => [s.id ?? s.team, s]));
+  const left = [sections.Production, sections.Retail, sections.Visual].filter(Boolean) as ReportSection[];
   const middle = [sections.QC].filter(Boolean) as ReportSection[];
   const title = comparisonTitle(prev, cur);
   const years = prev.year === cur.year ? String(cur.year) : `${prev.year}–${cur.year}`;
@@ -137,10 +141,10 @@ export const ReportSlide = forwardRef<HTMLDivElement, Props>(function ReportSlid
       <div className="rs-rule" />
       {summary && <p className="rs-summary">❖ {summary}</p>}
 
-      <div className={`rs-grid ${showGlance ? '' : 'no-glance'} ${middle.length || notes.length || highlights.length ? '' : 'no-middle'}`}>
+      <div className={`rs-grid ${showGlance ? '' : 'no-glance'} ${middle.length || blocks.length || notes.length || highlights.length ? '' : 'no-middle'}`}>
         <div className="rs-col">
           {left.map((s) => (
-            <SectionTable key={s.team} s={s} prevShort={prev.short} curShort={cur.short} markNew={markNew} />
+            <SectionTable key={s.id ?? s.team} s={s} prevShort={prev.short} curShort={cur.short} markNew={markNew} />
           ))}
           {highlights.slice(0, Math.ceil(highlights.length / 2)).map((h, i) => (
             <div className="rs-note rs-note-gold" key={`hl-${i}`}>
@@ -151,7 +155,10 @@ export const ReportSlide = forwardRef<HTMLDivElement, Props>(function ReportSlid
         </div>
         <div className="rs-col">
           {middle.map((s) => (
-            <SectionTable key={s.team} s={s} prevShort={prev.short} curShort={cur.short} markNew={markNew} />
+            <SectionTable key={s.id ?? s.team} s={s} prevShort={prev.short} curShort={cur.short} markNew={markNew} />
+          ))}
+          {blocks.map((b) => (
+            <Block key={b.id} b={b} />
           ))}
           {highlights.slice(Math.ceil(highlights.length / 2)).map((h, i) => (
             <div className="rs-note rs-note-gold" key={`hr-${i}`}>
@@ -179,7 +186,7 @@ export const ReportSlide = forwardRef<HTMLDivElement, Props>(function ReportSlid
             {report.glance.map((g) => (
               <div className="rs-g-item" key={g.label}>
                 <div className="rs-g-label">{g.label}</div>
-                <GlanceValue prev={g.prev} cur={g.cur} lowerIsBetter={g.lowerIsBetter} markNew={markNew} />
+                {g.text ? <div className="rs-g-val">{g.text}</div> : <GlanceValue prev={g.prev} cur={g.cur} lowerIsBetter={g.lowerIsBetter} markNew={markNew} />}
               </div>
             ))}
             <div className="rs-g-range">

@@ -53,7 +53,7 @@
 .rs-table tbody tr:nth-child(even) td { background: var(--rs-rose); }
 .rs-table .rs-name { text-align: left; width: 27%; padding-left: 6px; }
 .rs-table.cols-10 .rs-name { width: 20%; }
-.rs-table th:last-child, .rs-table td:last-child { width: 12%; }
+.rs-table:not(.no-delta) th:last-child, .rs-table:not(.no-delta) td:last-child { width: 12%; }
 .rs-table .rs-name { white-space: normal; }
 .rs-table tfoot td { background: var(--rs-rose-2); font-weight: 700; border-bottom: 0; }
 .rs-up { color: var(--rs-teal); }

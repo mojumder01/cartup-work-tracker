@@ -35,6 +35,8 @@ export interface DashboardData {
   governance?: GovernanceData | null;
   /** Catalogue Overall Performance spreadsheet (Daily / Monthly report). */
   performance?: PerformanceData | null;
+  /** Extra sheets (config extraSources): retail = Retail [Picks] Upload Request, pendingQc = Admin Portal Pending QC. */
+  extra?: Record<string, ExtraTable | null>;
   /** Apps Script web app URL (project writes + "Update data"). */
   appsScriptUrl?: string | null;
   warnings: string[];
@@ -130,3 +132,11 @@ export interface KpiReport {
 }
 
 export type Route = 'dashboard' | 'work' | 'kpi' | 'team' | 'upload' | 'qc' | 'visual' | 'reports' | 'people' | 'settings' | 'gov-tasks' | 'gov-projects';
+
+/** One tab of an extra Google Sheet, as published by the sync. */
+export interface ExtraTable extends FlatTable {
+  label: string;
+  spreadsheetTitle: string;
+  tabs: string[];
+  sheet: string;
+}
