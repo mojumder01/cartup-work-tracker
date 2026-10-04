@@ -49,6 +49,8 @@ export interface WriteOp {
   set?: Record<string, WriteValue>;
   /** Values the person saw; the row is refused if any of them changed since. */
   expect?: Record<string, Cell>;
+  /** Work Sheet only: also copy the changed cells to the Content/Commercial "Uplaod Responses Form" tab. */
+  mirror?: boolean;
 }
 
 export interface WriteResult {
@@ -59,6 +61,8 @@ export interface WriteResult {
   reason?: string;
   stale?: boolean;
   duplicate?: boolean;
+  /** Result of the copy to the Content/Commercial sheet (script 2.1.0+, only when mirror was asked). */
+  mirror?: { ok: boolean; written: string[]; skipped: { field: string; reason: string }[]; reason?: string };
 }
 
 const looksOld = (msg: string) => /unknown action|unknown sheet/i.test(msg);

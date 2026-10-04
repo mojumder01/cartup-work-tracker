@@ -25,3 +25,6 @@
 .tf-tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px; }
 .tf-tabs button { flex: 1; border: 0; background: none; color: var(--ink-3); font: inherit; font-weight: 600; padding: 9px 10px; border-radius: 9px; cursor: pointer; }
 .tf-tabs button.on { background: var(--ink); color: var(--bg); }
+.tf-check { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2, transparent); cursor: pointer; }
+.tf-check input { margin-top: 3px; }
+.tf-check small { display: block; color: var(--ink-3); font-size: 12px; margin-top: 2px; }

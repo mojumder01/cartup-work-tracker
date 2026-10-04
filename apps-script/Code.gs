@@ -23,10 +23,32 @@
  *   GITHUB_TOKEN = fine-grained token (only this repo, "Actions: Read and write"), GITHUB_REPO = owner/repo.
  */
 
-var SCRIPT_VERSION = '2.0.0';
+var SCRIPT_VERSION = '2.1.0';
 
 var WORK_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
 var GOVERNANCE_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
+/** "Cartup Work Tracker Content/Commercial" — Work Sheet changes can be copied to its "Uplaod Responses Form" tab. */
+var COMMERCIAL_ID = '1uwPpC9Ut81iRWF_sSzYimzozugy4S6xiw-x5rVM1kJk';
+
+/**
+ * Work Sheet column → Content/Commercial column, used when a change is sent with mirror:true.
+ * Override without redeploying: Script Property COMMERCIAL_MAP = {"Status":"Upload Status", …} (JSON).
+ */
+var COMMERCIAL_MAP = {
+  'Number of SKU': 'Number of SKU',
+  'Uploaded SKU Count': 'Uploaded SKU Count',
+  'Status': 'Upload Status',
+  'Comments': 'Catalogue Comment',
+  'Rejected QC Count': 'Rejected QC Count',
+  'Approved QC Count': 'Approved QC Count',
+  'Upload date': 'Upload Date',
+  'QC approved date': 'QC Date',
+  'QC Status': 'QC Status',
+};
+/** JOB ID column of the Content/Commercial tab when its header is not "JOB ID" (Script Property COMMERCIAL_JOB_COL overrides). */
+var COMMERCIAL_JOB_COL = 'S';
+/** Fallback match when no JOB ID is found: all of these columns that both tabs have. */
+var COMMERCIAL_MATCH = ['Timestamp', 'Seller Code', 'Shop Name', 'Number of SKU', 'Task Type'];
 
 var WORK_WRITABLE = ['Status', 'Uploaded SKU Count', 'Rejected SKU Count', 'Upload date', 'Upload Month', 'Comments', 'Uploaded by',
   'Visual editor', 'Image Status', 'Image count', 'Edited (By Hand)', 'Edited (By AI)', 'Image Delivered Date',
@@ -41,6 +63,7 @@ var SHEETS = {
   log: { id: WORK_ID, tab: 'Form Log', key: 'JOB ID', writable: [] },
   projects: { id: GOVERNANCE_ID, tab: 'Projects', key: 'Project ID', writable: '*', managed: true, append: true },
   progress: { id: GOVERNANCE_ID, tab: 'Project Progress', key: 'Log ID', writable: '*', managed: true, append: true, remove: true },
+  commercial: { id: COMMERCIAL_ID, tab: 'Uplaod Responses Form', key: 'Timestamp', writable: [] },
 };
 var FORM_LOG_HEADERS = ['Timestamp', 'JOB ID', 'Submitted By', 'Field', 'Old Value', 'New Value'];
 var SECRET = /password|passcode|login\s*id|secret|token|phone|mail/i;
@@ -237,6 +260,76 @@ function read_(p) {
   return res;
 }
 
+// ---- MIRROR (Work Sheet → Content/Commercial) -------------------------------------------
+
+function commercialMap_() {
+  var custom = prop_('COMMERCIAL_MAP');
+  if (custom) { try { return JSON.parse(custom); } catch (e) { /* fall back */ } }
+  return COMMERCIAL_MAP;
+}
+
+/**
+ * Brings the matching Content/Commercial row in line with a Work Sheet row: every mapped
+ * column that has a value in the Work Sheet (after this save) is copied; empty Work Sheet
+ * cells never clear the other sheet. Returns { ok, written, skipped, reason? }. Never throws.
+ */
+function mirror_(W, row, cache) {
+  try {
+    var map = commercialMap_();
+    var C = cache.L || (cache.L = layout_(tab_(SHEETS.commercial, false), SHEETS.commercial));
+    var src = W.sh.getRange(row, 1, 1, W.width).getValues()[0];
+    var srcOf = function (name) { var c = W.col(name); return c ? src[c - 1] : null; };
+    var values = {};
+    Object.keys(map).forEach(function (f) { var v = srcOf(f); if (v !== null && norm_(v) !== '') values[f] = v; });
+    var fields = Object.keys(values);
+    if (!fields.length) return { ok: true, written: [], skipped: [], reason: 'nothing to copy' };
+    var last = C.sh.getLastRow();
+    if (last <= C.headerRow) return { ok: false, written: [], skipped: [], reason: 'the Content/Commercial tab is empty' };
+
+    // Find the row: JOB ID if the tab has that column, otherwise every COMMERCIAL_MATCH column both tabs have.
+    var target = -1;
+    var how;
+    var letter = String(prop_('COMMERCIAL_JOB_COL') || COMMERCIAL_JOB_COL).toUpperCase();
+    var jobCol = C.col('JOB ID') || (/^[A-Z]{1,2}$/.test(letter) ? letter.split('').reduce(function (z, ch) { return z * 26 + ch.charCodeAt(0) - 64; }, 0) : 0);
+    if (jobCol && W.col('JOB ID') && norm_(srcOf('JOB ID'))) {
+      how = 'JOB ID';
+      var id = norm_(srcOf('JOB ID'));
+      var hit = C.sh.getRange(C.headerRow + 1, jobCol, last - C.headerRow, 1).createTextFinder(id).matchEntireCell(true).matchCase(false).findNext();
+      target = hit ? hit.getRow() : -1;
+    } else {
+      var keys = COMMERCIAL_MATCH.filter(function (k) { return C.col(k) && W.col(k) && norm_(srcOf(k)) !== ''; });
+      if (keys.indexOf('Timestamp') < 0) return { ok: false, written: [], skipped: [], reason: 'no JOB ID or Timestamp to match the row' };
+      how = keys.join(' + ');
+      var want = keys.map(function (k) { return norm_(srcOf(k)).toLowerCase(); });
+      var data = C.sh.getRange(C.headerRow + 1, 1, last - C.headerRow, C.width).getValues();
+      var hits = [];
+      for (var i = 0; i < data.length; i++) {
+        var ok = keys.every(function (k, j) { return norm_(data[i][C.col(k) - 1]).toLowerCase() === want[j]; });
+        if (ok) hits.push(C.headerRow + 1 + i);
+      }
+      if (hits.length > 1) return { ok: false, written: [], skipped: [], reason: hits.length + ' rows match (' + how + ') — not changed' };
+      target = hits.length ? hits[0] : -1;
+    }
+    if (target < 0) return { ok: false, written: [], skipped: [], reason: 'no matching row (' + how + ')' };
+
+    var written = [];
+    var skipped = [];
+    fields.forEach(function (f) {
+      var name = map[f];
+      var c = C.col(name);
+      if (!c || SECRET.test(name)) { skipped.push({ field: name, reason: 'column not found' }); return; }
+      if (isFormula_(C, target, c)) { skipped.push({ field: name, reason: 'calculated by the sheet' }); return; }
+      var cell = C.sh.getRange(target, c);
+      if (norm_(cell.getValue()) === norm_(values[f])) return;
+      cell.setValue(values[f]);
+      written.push(name);
+    });
+    return { ok: true, row: target, written: written, skipped: skipped };
+  } catch (err) {
+    return { ok: false, written: [], skipped: [], reason: String(err && err.message ? err.message : err) };
+  }
+}
+
 // ---- WRITE ------------------------------------------------------------------------
 
 /**
@@ -244,7 +337,8 @@ function read_(p) {
  *   { sheet:'work', op:'update', key:'CCWT100', set:{ Status:'Done', 'Upload date':{date:'2026-10-01'} }, expect:{ Status:'Running' } },
  *   { sheet:'projects', op:'append', set:{ 'Project ID':'PRJ-…', … } },
  *   { sheet:'progress', op:'delete', key:'LOG-…' } ] }
- * → { ok, results:[{ ok, key, written:[…], skipped:[{field, reason}], reason?, duplicate? }] }
+ * Work Sheet updates with mirror:true also copy the changed cells to the Content/Commercial tab (COMMERCIAL_MAP).
+ * → { ok, results:[{ ok, key, written:[…], skipped:[{field, reason}], reason?, duplicate?, mirror? }] }
  */
 function write_(body, now) {
   var by = str_(body.by, 60);
@@ -252,6 +346,7 @@ function write_(body, now) {
   var ops = [].concat(body.ops || []);
   if (!ops.length || ops.length > 200) throw new Error('Send 1–200 changes at a time.');
   var layouts = {};
+  var mirrorCache = {};
   var logRows = [];
   var tz = Session.getScriptTimeZone();
   var results = ops.map(function (o) {
@@ -316,7 +411,12 @@ function write_(body, now) {
         written.push(f);
         if (cfg.log) logRows.push([now, key, by, f, old, isDate_(val) ? out_(val, tz) : String(val)]);
       });
-      return { ok: true, key: key, written: written, skipped: skipped };
+      var res = { ok: true, key: key, written: written, skipped: skipped };
+      if (o.mirror && name === 'work') {
+        res.mirror = mirror_(L, row, mirrorCache);
+        (res.mirror.written || []).forEach(function (f) { logRows.push([now, key, by, 'Content/Commercial → ' + f, '', 'copied from Work Sheet']); });
+      }
+      return res;
     } catch (err) {
       return { ok: false, key: key, reason: String(err && err.message ? err.message : err) };
     }
@@ -338,9 +438,10 @@ function doGet(e) {
     if (action === 'ping') {
       var check = function (cfg) { try { tab_(cfg, false); return null; } catch (err) { return String(err.message || err); } };
       var workErr = check(SHEETS.work);
+      var comErr = check(SHEETS.commercial);
       var govErr = (function () { try { SpreadsheetApp.openById(GOVERNANCE_ID); return null; } catch (err) { return 'The Apps Script runs as ' + account_() + ', and that account cannot open the Governance sheet. Share it with ' + account_() + ' as Editor.'; } })();
       return json_({ ok: true, version: SCRIPT_VERSION, account: account_(), sync: !!github_(),
-        work: !workErr, workError: workErr, sheet: !govErr, sheetError: govErr });
+        work: !workErr, workError: workErr, sheet: !govErr, sheetError: govErr, commercial: !comErr, commercialError: comErr });
     }
     if (action === 'read') return json_(read_(p));
     if (action === 'syncStatus') return json_(syncStatus_());
