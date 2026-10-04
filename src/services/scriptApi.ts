@@ -18,7 +18,7 @@ export class OldScriptError extends Error {
 }
 
 export interface ReadParams {
-  sheet: 'work' | 'projects' | 'progress' | 'log';
+  sheet: 'work' | 'projects' | 'progress' | 'log' | 'commercial' | 'adminQc';
   cols?: string[];
   key?: string;
   q?: string;

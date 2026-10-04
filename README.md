@@ -230,7 +230,15 @@ Click a job to open it in **Update my task**.
 
 Open **Daily report message** on the Task board and pick a day. There are two messages: **Production report** and **QC report**. You can edit either one before copying it.
 
-The QC report counts **QC Done**: SKUs (Approved + Rejected QC Count) of jobs QC'd that day. **QC Pending** is jobs uploaded by the end of that day and not QC'd by then.
+The QC report (`Total QC` / `No. of Sellers`) adds up Approved + Rejected QC Count of everything QC'd that day, from three sheets. This is the same rule as the Daily Performance tab:
+
+| Sheet | Rows counted |
+|---|---|
+| Cartup Content Work Tracker → Work Sheet | QC Status "QC Done", QC approved date = that day |
+| Admin Portal Pending QC → Seller QC Data | QC Status "Done", QC Date = that day |
+| Content/Commercial → Uplaod Responses Form | Task Type (column B) "Seller Upload QC", QC Status "QC Done", QC Date = that day |
+
+No. of Sellers is the number of those rows. Reading the Admin Portal sheet needs Apps Script 2.1.7 or later; without it the report shows a warning.
 
 The production report looks like this:
 
@@ -264,7 +272,7 @@ Under the Save button, the Job desk has a checkbox **"Also update Cartup Work Tr
   Empty Work Sheet cells never clear the other sheet, and formula columns are skipped. Each copy is recorded in the Form Log.
 - **Off:** only the Work Sheet is updated.
 
-**Needs Apps Script 2.1.6 or later.** The account the script runs as must have **Editor** access to that spreadsheet; Settings → Connections shows whether it can write. Two Script Properties change the behaviour without redeploying: `COMMERCIAL_MAP` (JSON) changes the column mapping, and `COMMERCIAL_JOB_COL` changes the JOB ID column letter.
+**Needs Apps Script 2.1.7 or later.** The account the script runs as must have **Editor** access to that spreadsheet; Settings → Connections shows whether it can write. Two Script Properties change the behaviour without redeploying: `COMMERCIAL_MAP` (JSON) changes the column mapping, and `COMMERCIAL_JOB_COL` changes the JOB ID column letter.
 
 ## Individual Summary report
 
