@@ -342,7 +342,7 @@ GitHub Pages cannot write to Google Sheets, so a small Google Apps Script does t
 2. Delete what is in `Code.gs`, paste the contents of [`apps-script/Code.gs`](apps-script/Code.gs) (or use **Settings → Connections → Copy script**), click **Save**.
 3. Choose the function **`setup`** in the toolbar → **Run** → allow the permissions. It uses your existing `Projects` and `Project Progress` tabs (it creates them only if they are missing) and writes any missing header cells into row 1. The `Main` tab is never modified.
 4. **Deploy → New deployment** → gear icon → **Web app** → *Execute as:* **Me**, *Who has access:* **Anyone** → **Deploy** → copy the **Web app URL** (`https://script.google.com/macros/s/…/exec`).
-5. In GitHub: **Settings → Secrets and variables → Actions → Variables → New repository variable** named `GOVERNANCE_APPS_SCRIPT_URL` with that URL. (To try it at once in your own browser, paste the URL in **Settings → Connections → Use here**.)
+5. Put that URL in `config/data-source.json` → `governance.appsScriptUrl`. It is used for everyone and wins over the older GitHub variable `GOVERNANCE_APPS_SCRIPT_URL`. (To try it at once in your own browser, paste the URL in **Settings → Connections → Use here**.)
 6. Click **Update data** (or **Actions → Sync Google Sheet & Deploy → Run workflow**).
 
 After that, REVAMP Projects shows **+ New project**, **Edit**, a status picker and **Log progress**. Changes are written to the Google Sheet immediately, and the page reads the tabs live through the same script, so there is no waiting for a sync.
