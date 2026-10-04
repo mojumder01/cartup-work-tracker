@@ -1,7 +1,7 @@
 /**
  * Task update form (form.html): an employee checks a JOB ID, sees the row's
  * current values, and updates Status / Uploaded SKU Count / Upload date /
- * Upload Month / Comments. The Apps Script writes them into that JOB ID's row
+ * Upload Month / Rejected SKU Count / Comments. The Apps Script writes them into that JOB ID's row
  * of the Work Sheet and logs old → new values in the "Form Log" tab.
  */
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
@@ -85,7 +85,7 @@ export function TaskForm() {
   const [checking, setChecking] = useState(false);
   const [lookup, setLookup] = useState<Lookup | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
-  const [f, setF] = useState({ status: '', sku: '', date: '', month: '', monthTouched: false, comments: '' });
+  const [f, setF] = useState({ status: '', sku: '', rejected: '', date: '', month: '', monthTouched: false, comments: '' });
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ tone: 'good' | 'bad' | 'warn'; text: string } | null>(null);
 
@@ -131,6 +131,7 @@ export function TaskForm() {
         setF({
           status: text(j.job.Status),
           sku: text(j.job['Uploaded SKU Count']),
+          rejected: text(j.job['Rejected SKU Count']),
           date: d,
           month: monthOf(isoDay(j.job['Upload Month'])),
           monthTouched: false,
@@ -158,6 +159,7 @@ export function TaskForm() {
     const c: Record<string, string> = {};
     if (f.status !== text(job.Status)) c.Status = f.status;
     if (f.sku.trim() !== text(job['Uploaded SKU Count'])) c['Uploaded SKU Count'] = f.sku.trim().replace(/,/g, '');
+    if (f.rejected.trim() !== text(job['Rejected SKU Count'])) c['Rejected SKU Count'] = f.rejected.trim().replace(/,/g, '');
     if (f.date !== isoDay(job['Upload date'])) c['Upload date'] = f.date;
     if (!locked.has('Upload Month') && f.month !== monthOf(isoDay(job['Upload Month']))) c['Upload Month'] = f.month;
     if (f.comments.trim() !== text(job.Comments).trim()) c.Comments = f.comments.trim();
@@ -169,10 +171,14 @@ export function TaskForm() {
   const warnings: string[] = [];
   if (job) {
     if (f.sku.trim() && !/^\d[\d,]*$/.test(f.sku.trim())) problems.push('Uploaded SKU Count must be a whole number.');
+    if (f.rejected.trim() && !/^\d[\d,]*$/.test(f.rejected.trim())) problems.push('Rejected SKU Count must be a whole number.');
     if (f.status === 'Done' && !f.date) problems.push('Status “Done” needs an Upload date.');
     if (f.status === 'Done' && !f.sku.trim()) problems.push('Status “Done” needs the Uploaded SKU Count.');
     if (f.date && f.date > todayIso()) problems.push('Upload date cannot be in the future.');
     if (skuNum !== null && total !== null && skuNum > total) warnings.push(`Uploaded SKU Count (${skuNum.toLocaleString('en-US')}) is more than Number of SKU (${total.toLocaleString('en-US')}).`);
+    const rejNum = f.rejected.trim() ? Number(f.rejected.replace(/,/g, '')) : null;
+    if (rejNum !== null && total !== null && rejNum + (skuNum ?? 0) > total)
+      warnings.push(`Uploaded + Rejected SKU Count (${(rejNum + (skuNum ?? 0)).toLocaleString('en-US')}) is more than Number of SKU (${total.toLocaleString('en-US')}).`);
     const owner = text(job['Uploaded by']);
     if (owner && who && owner.toLowerCase() !== who.trim().toLowerCase()) warnings.push(`This job is assigned to ${owner}. Your update will be recorded under your name in the Form Log.`);
     if (!owner && who.trim()) warnings.push(`Nobody is set as “Uploaded by” yet — it will be set to ${who.trim()}.`);
@@ -191,7 +197,7 @@ export function TaskForm() {
       const jobRow = job as unknown as Record<string, Cell>;
       const set: Record<string, WriteValue> = {};
       for (const [k, v] of Object.entries(changes)) {
-        set[k] = k === 'Upload date' ? asDate(v) : k === 'Upload Month' ? asMonth(v) : k === 'Uploaded SKU Count' ? (v === '' ? '' : Number(v)) : v;
+        set[k] = k === 'Upload date' ? asDate(v) : k === 'Upload Month' ? asMonth(v) : k === 'Uploaded SKU Count' || k === 'Rejected SKU Count' ? (v === '' ? '' : Number(v)) : v;
       }
       const fields = Object.keys(set);
       // Credit the work to the person submitting when nobody is set as uploader yet.
@@ -342,6 +348,11 @@ export function TaskForm() {
               <label className="field">
                 <span>Uploaded SKU Count</span>
                 <input className="input" inputMode="numeric" value={f.sku} onChange={(e) => setF({ ...f, sku: e.target.value })} placeholder="0" disabled={locked.has('Uploaded SKU Count')} />
+              </label>
+              <label className="field">
+                <span>Rejected SKU Count</span>
+                <input className="input" inputMode="numeric" value={f.rejected} onChange={(e) => setF({ ...f, rejected: e.target.value })} placeholder="0" disabled={locked.has('Rejected SKU Count')} />
+                {locked.has('Rejected SKU Count') && <div className="tf-hint">Calculated by the sheet — no need to fill.</div>}
               </label>
               <label className="field">
                 <span>Upload date</span>
