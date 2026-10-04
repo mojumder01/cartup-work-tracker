@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Route } from '../types';
 import { Icon, type IconName } from './Icon';
 import { buildLabel, builtAtLabel } from '../utils/buildInfo';
+import { BUILT_BY_TEXT } from '../config/credits';
 
 export const NAV: { id: Route; label: string; icon: IconName; group: 'Overview' | 'Performance' | 'Governance' | 'Data' }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', group: 'Overview' },
@@ -83,6 +84,7 @@ export function Sidebar({ route, onNavigate, sheetTitle }: { route: Route; onNav
         <div className="build-tag" title={`Deployed ${builtAtLabel()}`}>
           {buildLabel()}
         </div>
+        <div className="build-tag">{BUILT_BY_TEXT}</div>
       </div>
     </aside>
   );

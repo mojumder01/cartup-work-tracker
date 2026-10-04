@@ -5,6 +5,7 @@
  * Existing assignees are kept unless "replace" is ticked, and nothing is
  * written if a row changed after the list was loaded.
  */
+import { BuiltBy } from '../components/BuiltBy';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { scriptRead, scriptWrite, withAnyUrl, type WriteOp } from '../services/scriptApi';
 
@@ -546,6 +547,7 @@ export function AssignForm() {
           </div>
         )}
 
+        <BuiltBy />
       </div>
 
       {selected.size > 0 && (
