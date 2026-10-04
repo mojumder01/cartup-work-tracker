@@ -6,7 +6,7 @@ import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { buildIndividualReport, parseSellerQc, type IndividualReport } from '../../utils/individualReport';
 import { comparisonPeriod, comparisonTitle, listPeriods, periodContaining, periodKey, type CompareMode, type Period, type PeriodType } from '../../utils/periods';
 import { fmtNum } from '../../utils/format';
-import { activeDuring, findPerson } from '../../utils/roster';
+import { activeDuring, findPerson, leftChecker } from '../../utils/roster';
 import { text } from '../../utils/parse';
 import { exportXlsx, exportXlsxSheets, stamp, type ExportRow } from '../../utils/export';
 import { buildEmployeeDetail } from '../../utils/employeeDetail';
@@ -215,15 +215,16 @@ export function ReportBuilder() {
   const adhocIn = (p: Period) => (gov.adhoc?.tasks ?? []).filter((t) => t.date !== null && t.date >= p.start && t.date < p.end);
   const adhocChoices = useMemo(() => {
     const m = new Map<string, { name: string; skus: number }>();
+    const isLeft = leftChecker(roster);
     for (const t of [...adhocIn(prev), ...adhocIn(cur)]) {
-      if (!t.person) continue;
+      if (!t.person || isLeft(t.person)) continue;
       const g = m.get(t.person.toLowerCase()) ?? { name: t.person, skus: 0 };
       g.skus += t.products;
       m.set(t.person.toLowerCase(), g);
     }
     return [...m.values()].sort((a, b) => b.skus - a.skus);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gov.adhoc, prev, cur]);
+  }, [gov.adhoc, prev, cur, roster]);
   const adhocBlocks: ReportBlock[] = useMemo(
     () =>
       s.adhocPeople
@@ -275,7 +276,8 @@ export function ReportBuilder() {
     const m = new Map<string, string>();
     Object.values(candidates).flat().forEach((c) => m.set(c.name.toLowerCase(), c.name));
     roster.forEach((p) => !m.has(p.name.toLowerCase()) && m.set(p.name.toLowerCase(), p.name));
-    return [...m.values()].sort((a, b) => a.localeCompare(b));
+    const isLeft = leftChecker(roster);
+    return [...m.values()].filter((n) => !isLeft(n)).sort((a, b) => a.localeCompare(b));
   }, [candidates, roster]);
   const downloadDetail = async () => {
     if (!detailPerson) return;

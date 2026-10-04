@@ -24,7 +24,11 @@ export default function PeoplePage() {
   const localCount = Object.keys(rosterOverrides).length;
 
   const rows = useMemo(
-    () => roster.filter((p) => (show === 'all' ? true : show === 'left' ? p.status === 'Left' : p.status === 'Active')),
+    () =>
+      roster
+        .filter((p) => (show === 'all' ? true : show === 'left' ? p.status === 'Left' : p.status === 'Active'))
+        // Active people first, then those who left (each group keeps the team / name order).
+        .sort((a, b) => (a.status === 'Left' ? 1 : 0) - (b.status === 'Left' ? 1 : 0)),
     [roster, show],
   );
   const counts = useMemo(() => ({ active: roster.filter((p) => p.status === 'Active').length, left: roster.filter((p) => p.status === 'Left').length }), [roster]);

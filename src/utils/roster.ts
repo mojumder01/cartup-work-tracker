@@ -186,6 +186,12 @@ export function activeDuring(p: Person, periodStart: number): boolean {
 
 export const findPerson = (roster: Person[], name: string) => roster.find((p) => key(p.name) === key(name));
 
+/** Names marked "Left the job" (Team Members page / tab, or "Resigned" in the Team tab) — hidden from every name dropdown. */
+export function leftChecker(roster: Person[]): (name: string) => boolean {
+  const left = new Set(roster.filter((p) => p.status === 'Left').flatMap((p) => [key(p.name), key(p.fullName)]));
+  return (name: string) => left.has(key(name));
+}
+
 /** Tab-separated rows ready to paste into the "Team Members" Google Sheet tab. */
 export function rosterToTsv(roster: Person[]): string {
   const rows = [['Name', 'Full Name', 'Team', 'Status', 'Left Date'], ...roster.map((p) => [p.name, p.fullName, p.team, p.status, p.leftDate])];

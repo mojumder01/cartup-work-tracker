@@ -112,9 +112,9 @@ export default function TeamPage() {
                   </option>
                 ))}
               </optgroup>
-              {leftSet.size > 0 && (
+              {person && leftSet.has(person.toLowerCase()) && (
                 <optgroup label="Left the job">
-                  {people.filter((p) => leftSet.has(p.toLowerCase())).map((p) => (
+                  {[person].map((p) => (
                     <option key={p} value={p}>
                       {p} (left)
                     </option>
