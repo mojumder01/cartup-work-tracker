@@ -23,12 +23,14 @@
  *   GITHUB_TOKEN = fine-grained token (only this repo, "Actions: Read and write"), GITHUB_REPO = owner/repo.
  */
 
-var SCRIPT_VERSION = '2.1.6';
+var SCRIPT_VERSION = '2.1.7';
 
 var WORK_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
 var GOVERNANCE_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
 /** "Cartup Work Tracker Content/Commercial" — Work Sheet changes can be copied to its "Uplaod Responses Form" tab. */
 var COMMERCIAL_ID = '1uwPpC9Ut81iRWF_sSzYimzozugy4S6xiw-x5rVM1kJk';
+/** "Admin Portal Pending QC" — read only (Task board QC daily report). */
+var ADMIN_QC_ID = '1eNTD6eB5JWbvgHzGhG-3Vn5hjw4xVt8tlDgbdNktb7I';
 
 /**
  * Work Sheet column → Content/Commercial column, used when a change is sent with mirror:true.
@@ -62,6 +64,7 @@ var SHEETS = {
   projects: { id: GOVERNANCE_ID, tab: 'Projects', key: 'Project ID', writable: '*', managed: true, append: true },
   progress: { id: GOVERNANCE_ID, tab: 'Project Progress', key: 'Log ID', writable: '*', managed: true, append: true, remove: true },
   commercial: { id: COMMERCIAL_ID, tab: 'Uplaod Responses Form', key: 'Timestamp', writable: [] },
+  adminQc: { id: ADMIN_QC_ID, tab: 'Seller QC Data', key: 'Timestamp', writable: [] },
 };
 var FORM_LOG_HEADERS = ['Timestamp', 'JOB ID', 'Submitted By', 'Field', 'Old Value', 'New Value'];
 var SECRET = /password|passcode|login\s*id|secret|token|phone|mail/i;

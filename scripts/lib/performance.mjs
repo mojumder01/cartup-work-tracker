@@ -6,10 +6,19 @@ import { batchGetTabs, getSpreadsheetInfo } from './sheets-api.mjs';
 import { transformReportTab, transformWorkSheet } from './transform.mjs';
 
 /** Google tab names can be longer than the 31-character Excel copies, so match by prefix too. */
+/** Tabs get renamed ("Import - ContentCommercial Work" → "Import - Content/Commercial Work Tracker"), so punctuation is ignored and a longer name still matches. */
+const squash = (v) => String(v).toLowerCase().replace(/[^a-z0-9]+/g, '');
 const findTab = (tabs, name) => {
   if (!name) return null;
   const n = String(name).trim().toLowerCase();
-  return tabs.find((t) => t.trim().toLowerCase() === n) ?? tabs.find((t) => t.trim().toLowerCase().startsWith(n)) ?? null;
+  const k = squash(name);
+  return (
+    tabs.find((t) => t.trim().toLowerCase() === n) ??
+    tabs.find((t) => t.trim().toLowerCase().startsWith(n)) ??
+    tabs.find((t) => squash(t) === k) ??
+    tabs.find((t) => squash(t).startsWith(k)) ??
+    null
+  );
 };
 
 export async function fetchPerformance(token, config, dateColumns, warnings) {

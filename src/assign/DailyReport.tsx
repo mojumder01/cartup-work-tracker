@@ -2,16 +2,21 @@
  * Daily short report messages for the team chat, counted live from the Work Sheet.
  *
  * Production                                 QC
- *   24/09/2026                                 24/09/2026
- *   Uploaded SKUs: 5,413 (Seller Done 22)      QC Done: 4,321 SKUs (Seller 20)
- *   Image Edited: 21,492 (Seller 14)           QC Pending: 45 Seller
+ *   24/09/2026                                 04/10/2026
+ *   Uploaded SKUs: 5,413 (Seller Done 22)      Total QC: 6,740
+ *   Image Edited: 21,492 (Seller 14)           No. of Sellers: 254
  *   Seller Upload Pending: 65 Seller
  *
  *   Uploaded  = Status "Done" with that Upload date (Σ Uploaded SKU Count, rows = sellers)
  *   Image     = Image Delivered Date on that day (Σ Image count, rows = sellers)
  *   Upload pending = requested by the end of that day and not uploaded by then (Rejected left out)
- *   QC Done   = QC Status "QC Done" with that QC approved date (Σ Approved + Rejected QC Count)
- *   QC Pending = uploaded by the end of that day and not QC'd by then
+ *   Total QC  = Σ (Approved + Rejected QC Count) of everything QC'd that day, from three sheets
+ *               (same rule as the Daily Performance tab):
+ *                 Work Sheet: QC Status "QC Done", QC approved date
+ *                 Admin Portal Pending QC: QC Status "Done", QC Date
+ *                 Uplaod Responses Form: Task Type "Seller Upload QC", QC Status "QC Done", QC Date
+ *   No. of Sellers = number of those rows
+ *   QC Pending (shown beside, not in the message) = uploaded by the end of that day and not QC'd by then
  */
 import { useEffect, useMemo, useState } from 'react';
 import { scriptRead, withAnyUrl } from '../services/scriptApi';
@@ -36,6 +41,8 @@ export function DailyReport({ urls }: { urls: string[] }) {
   const [date, setDate] = useState(todayIso);
   const [kind, setKind] = useState<Kind>('production');
   const [rows, setRows] = useState<Row[] | null>(null);
+  /** Other QC sheets (null = not readable — older Apps Script or no access). */
+  const [extraQc, setExtraQc] = useState<{ admin: Row[] | null; seller: Row[] | null } | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [edits, setEdits] = useState<Partial<Record<Kind, string>>>({});
@@ -57,6 +64,13 @@ export function DailyReport({ urls }: { urls: string[] }) {
         ]);
         const byId = new Map<string, Row>();
         for (const r of [...a.objects, ...b.objects]) byId.set(t(r['JOB ID']) || `row-${byId.size}`, r as Row);
+        // The two other QC sheets (Apps Script 2.1.7+); a failure only leaves them out.
+        const qcCols = ['Timestamp', 'Task Type', 'QC Status', 'QC Date', 'Approved QC Count', 'Rejected QC Count'];
+        const [admin, seller] = await Promise.all([
+          scriptRead(u, { sheet: 'adminQc', cols: qcCols, recent: { cols: ['QC Date'], days: back }, limit: 5000 }).then((x) => x.objects as Row[], () => null),
+          scriptRead(u, { sheet: 'commercial', cols: qcCols, recent: { cols: ['QC Date'], days: back }, limit: 5000 }).then((x) => x.objects as Row[], () => null),
+        ]);
+        setExtraQc({ admin, seller });
         return [...byId.values()];
       });
       setRows(value);
@@ -72,7 +86,7 @@ export function DailyReport({ urls }: { urls: string[] }) {
 
   const stats = useMemo(() => {
     if (!rows) return null;
-    const s = { skus: 0, sellersDone: 0, images: 0, imageSellers: 0, pending: 0, qcSkus: 0, qcSellers: 0, qcPending: 0 };
+    const s = { skus: 0, sellersDone: 0, images: 0, imageSellers: 0, pending: 0, qcSkus: 0, qcSellers: 0, qcPending: 0, wsQc: 0, adminQc: 0, sellerQc: 0 };
     for (const r of rows) {
       const status = t(r.Status);
       const up = day(r['Upload date']);
@@ -90,18 +104,31 @@ export function DailyReport({ urls }: { urls: string[] }) {
       if (t(r['QC Status']) === 'QC Done' && qcDay === date) {
         s.qcSkus += num(r['Approved QC Count']) + num(r['Rejected QC Count']);
         s.qcSellers++;
+        s.wsQc++;
       }
       // Uploaded by the end of the day, not QC'd by then.
       if (status === 'Done' && up && up <= date && (!QC_FINISHED.test(t(r['QC Status'])) || (qcDay && qcDay > date))) s.qcPending++;
     }
+    for (const r of extraQc?.admin ?? []) {
+      if (t(r['QC Status']).toLowerCase() !== 'done' || day(r['QC Date']) !== date) continue;
+      s.qcSkus += num(r['Approved QC Count']) + num(r['Rejected QC Count']);
+      s.qcSellers++;
+      s.adminQc++;
+    }
+    for (const r of extraQc?.seller ?? []) {
+      if (t(r['Task Type']) !== 'Seller Upload QC' || t(r['QC Status']) !== 'QC Done' || day(r['QC Date']) !== date) continue;
+      s.qcSkus += num(r['Approved QC Count']) + num(r['Rejected QC Count']);
+      s.qcSellers++;
+      s.sellerQc++;
+    }
     return s;
-  }, [rows, date]);
+  }, [rows, extraQc, date]);
 
   const [y, m, d] = date.split('-');
   const auto: Record<Kind, string> = stats
     ? {
         production: [`${d}/${m}/${y}`, `Uploaded SKUs: ${fmt(stats.skus)} (Seller Done ${stats.sellersDone})`, `Image Edited: ${fmt(stats.images)} (Seller ${stats.imageSellers})`, `Seller Upload Pending: ${stats.pending} Seller`].join('\n'),
-        qc: [`${d}/${m}/${y}`, `QC Done: ${fmt(stats.qcSkus)} SKUs (Seller ${stats.qcSellers})`, `QC Pending: ${stats.qcPending} Seller`].join('\n'),
+        qc: [`${d}/${m}/${y}`, `Total QC: ${fmt(stats.qcSkus)}`, `No. of Sellers: ${fmt(stats.qcSellers)}`].join('\n'),
       }
     : { production: '', qc: '' };
   const text = edits[kind] ?? auto[kind];
@@ -145,7 +172,10 @@ export function DailyReport({ urls }: { urls: string[] }) {
                 Upload pending <b>{stats.pending}</b> sellers
               </span>
               <span>
-                QC done <b>{fmt(stats.qcSkus)}</b> SKUs · <b>{stats.qcSellers}</b> sellers
+                Total QC <b>{fmt(stats.qcSkus)}</b> · <b>{stats.qcSellers}</b> sellers
+              </span>
+              <span className="muted" style={{ fontSize: 12 }}>
+                Work Sheet {stats.wsQc} · Admin Portal {extraQc?.admin ? stats.adminQc : 'n/a'} · Seller Upload QC {extraQc?.seller ? stats.sellerQc : 'n/a'}
               </span>
               <span>
                 QC pending <b>{stats.qcPending}</b> sellers
@@ -158,6 +188,11 @@ export function DailyReport({ urls }: { urls: string[] }) {
         </div>
         <div className="ab-daily-msg">
           {err && <div className="tf-msg bad">{err}</div>}
+          {kind === 'qc' && extraQc && (!extraQc.admin || !extraQc.seller) && (
+            <div className="tf-msg warn">
+              {[!extraQc.admin && 'Admin Portal Pending QC', !extraQc.seller && 'Uplaod Responses Form (Seller Upload QC)'].filter(Boolean).join(' and ')} could not be read, so Total QC is incomplete. Update the Apps Script to version 2.1.7 (Settings → Connections) and make sure its account can open those sheets.
+            </div>
+          )}
           <div className="ab-roles" role="tablist" aria-label="Report" style={{ margin: 0 }}>
             {(['production', 'qc'] as Kind[]).map((k) => (
               <button key={k} type="button" role="tab" aria-selected={kind === k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)}>
