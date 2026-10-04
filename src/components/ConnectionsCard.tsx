@@ -9,6 +9,9 @@ import { fmtNum } from '../utils/format';
 import { Card } from './ui';
 import { Icon } from './Icon';
 
+/** Version written in apps-script/Code.gs (SCRIPT_VERSION). */
+const LATEST_SCRIPT = codeGs.match(/SCRIPT_VERSION = '([\d.]+)'/)?.[1] ?? '';
+
 const Ok = ({ ok, children }: { ok: boolean | null; children: React.ReactNode }) => (
   <span className={`badge ${ok === null ? '' : ok ? 'good' : 'bad'}`}>
     <Icon name={ok ? 'check' : 'alert'} size={12} />
@@ -39,7 +42,7 @@ export function ConnectionsCard() {
   };
   const projMissing = data.governance?.projects ? missingHeaders(data.governance.projects.columns, PROJECT_HEADERS) : [];
   const progMissing = data.governance?.progress ? missingHeaders(data.governance.progress.columns, PROGRESS_HEADERS) : [];
-  const [ping, setPing] = useState<{ ok: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; account?: string; error?: string } | null>(null);
+  const [ping, setPing] = useState<{ ok: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; account?: string; version?: string; error?: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const repoUrl = BUILD.repo ? `https://github.com/${BUILD.repo}` : null;
 
@@ -54,9 +57,9 @@ export function ConnectionsCard() {
               : `HTTP ${r.status} from the Web app. Check Deploy → Manage deployments: Execute as Me, Who has access Anyone.`,
           );
         }
-        return readAppsScriptJson<{ ok?: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; account?: string }>(r);
+        return readAppsScriptJson<{ ok?: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; account?: string; version?: string }>(r);
       })
-      .then((j) => setPing({ ok: !!j.ok, sync: !!j.sync, sheet: j.sheet, sheetError: j.sheetError ?? undefined, work: j.work, workError: j.workError ?? undefined, account: j.account ?? undefined }))
+      .then((j) => setPing({ ok: !!j.ok, sync: !!j.sync, sheet: j.sheet, sheetError: j.sheetError ?? undefined, work: j.work, workError: j.workError ?? undefined, account: j.account ?? undefined, version: j.version ?? '' }))
       .catch((e) => setPing({ ok: false, error: (e as Error).message || 'Not reachable — check the deployment access is “Anyone”.' }));
   }, [url]);
 
@@ -194,6 +197,12 @@ export function ConnectionsCard() {
           )}
         </div>
         {ping && !ping.ok && ping.error && <p style={{ color: 'var(--bad)', fontSize: 13, marginTop: 0 }}>{ping.error}</p>}
+        {ping?.ok && ping.version !== LATEST_SCRIPT && (
+          <p style={{ color: 'var(--bad)', fontSize: 13, marginTop: 0 }}>
+            ⚠ The deployed Apps Script is {ping.version ? `version ${ping.version}` : 'an older version'}; the latest is {LATEST_SCRIPT}. Click <b>Copy script</b>, paste it into Code.gs, then
+            Deploy → Manage deployments → ✏️ → Version: <b>New version</b> → Deploy. Until then the task update form cannot check JOB IDs.
+          </p>
+        )}
         {ping?.ok && ping.work !== undefined && (
           <p style={{ fontSize: 13, marginTop: 0 }}>
             <Ok ok={!!ping.work}>Task update form {ping.work ? 'can write to the Work Sheet' : 'cannot write to the Work Sheet'}</Ok>{' '}

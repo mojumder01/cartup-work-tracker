@@ -114,6 +114,11 @@ export function TaskForm() {
       if (!res.ok) throw new Error(`The Google Sheets service returned HTTP ${res.status}.`);
       const j = await readAppsScriptJson<Lookup & { error?: string }>(res);
       if (!j.ok) throw new Error(j.error || 'Could not check the JOB ID.');
+      if (typeof j.found !== 'boolean') {
+        throw new Error(
+          'The Apps Script Web app is an older version that cannot check JOB IDs yet. Paste the latest Code.gs into Apps Script, then Deploy → Manage deployments → ✏️ → Version: New version → Deploy.',
+        );
+      }
       setLookup(j);
       if (j.found && j.job) {
         const d = isoDay(j.job['Upload date']);
