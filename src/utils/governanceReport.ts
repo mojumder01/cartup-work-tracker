@@ -223,3 +223,22 @@ export function adhocBlock(id: string, title: string, head: string, prevTasks: A
     deltaCol: true,
   };
 }
+
+/** "Ad-Hoc Task · Galib": one person's Ad-Hoc SKUs (Product Count) per task type, previous vs current period. */
+export function adhocPersonBlock(person: string, prevTasks: AdhocTask[], curTasks: AdhocTask[], prev: Period, cur: Period): ReportBlock {
+  const mine = (arr: AdhocTask[]) => arr.filter((t) => t.person.trim().toLowerCase() === person.trim().toLowerCase());
+  const a = new Map(groupAdhoc(mine(prevTasks), (t) => t.taskType).map((g) => [g.key, g.products]));
+  const b = new Map(groupAdhoc(mine(curTasks), (t) => t.taskType).map((g) => [g.key, g.products]));
+  const keys = [...new Set([...a.keys(), ...b.keys()])].sort((m, n) => m.localeCompare(n));
+  const rows: Cell[][] = keys.map((k) => [k, a.get(k) ?? null, b.get(k) ?? null, (b.get(k) ?? 0) - (a.get(k) ?? 0)]);
+  const tp = [...a.values()].reduce((z, v) => z + v, 0);
+  const tc = [...b.values()].reduce((z, v) => z + v, 0);
+  return {
+    id: `adhoc-${person.toLowerCase()}`,
+    title: `Ad-Hoc Task · ${person}`,
+    head: ['Task Type', prev.label, cur.label, 'Δ'],
+    rows,
+    total: ['Total', tp, tc, tc - tp],
+    deltaCol: true,
+  };
+}

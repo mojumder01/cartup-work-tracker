@@ -5,13 +5,14 @@ import { useApp } from '../../hooks/AppContext';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { buildIndividualReport, parseSellerQc, type IndividualReport } from '../../utils/individualReport';
 import { comparisonPeriod, comparisonTitle, listPeriods, periodContaining, periodKey, type CompareMode, type Period, type PeriodType } from '../../utils/periods';
+import { fmtNum } from '../../utils/format';
 import { activeDuring, findPerson } from '../../utils/roster';
 import { text } from '../../utils/parse';
 import { exportXlsx, exportXlsxSheets, stamp, type ExportRow } from '../../utils/export';
 import { buildEmployeeDetail } from '../../utils/employeeDetail';
 import { checkCredit, creditRule } from '../../utils/credit';
 import { useGovernance } from '../../hooks/useGovernance';
-import { defaultIncluded, inReport, projectBlock, projectGlance, type Cell, type ReportBlock } from '../../utils/governanceReport';
+import { adhocPersonBlock, defaultIncluded, inReport, projectBlock, projectGlance, type Cell, type ReportBlock } from '../../utils/governanceReport';
 import type { GlanceItem } from '../../utils/individualReport';
 import { Card, Segmented } from '../ui';
 import { Icon } from '../Icon';
@@ -34,6 +35,8 @@ interface Settings {
   includeRetail: boolean;
   /** Explicit on/off per project table; missing = automatic (open or active in the two periods). */
   projects: Record<string, boolean>;
+  /** People who get an "Ad-Hoc Task · <name>" table (Governance Main tab). */
+  adhocPeople: string[];
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -47,6 +50,7 @@ const DEFAULT_SETTINGS: Settings = {
   markNew: 'off',
   includeRetail: true,
   projects: {},
+  adhocPeople: [],
 };
 
 const ROLE: Record<string, string> = { Production: C.uploadedBy, Visual: C.visualEditor, QC: C.qcBy };
@@ -207,6 +211,29 @@ export function ReportBuilder() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosenKey, gov.logs, gov.projects, prev, cur, s.markNew]);
+  // Ad-Hoc Task tables per person (Governance Main tab, Product Count by task type).
+  const adhocIn = (p: Period) => (gov.adhoc?.tasks ?? []).filter((t) => t.date !== null && t.date >= p.start && t.date < p.end);
+  const adhocChoices = useMemo(() => {
+    const m = new Map<string, { name: string; skus: number }>();
+    for (const t of [...adhocIn(prev), ...adhocIn(cur)]) {
+      if (!t.person) continue;
+      const g = m.get(t.person.toLowerCase()) ?? { name: t.person, skus: 0 };
+      g.skus += t.products;
+      m.set(t.person.toLowerCase(), g);
+    }
+    return [...m.values()].sort((a, b) => b.skus - a.skus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gov.adhoc, prev, cur]);
+  const adhocBlocks: ReportBlock[] = useMemo(
+    () =>
+      s.adhocPeople
+        .filter((n) => adhocChoices.some((c) => c.name.toLowerCase() === n.toLowerCase()))
+        .map((n) => adhocPersonBlock(adhocChoices.find((c) => c.name.toLowerCase() === n.toLowerCase())!.name, adhocIn(prev), adhocIn(cur), prev, cur)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [s.adhocPeople.join(), adhocChoices, gov.adhoc, prev, cur],
+  );
+  const slideBlocks = useMemo(() => [...projBlocks, ...adhocBlocks], [projBlocks, adhocBlocks]);
+
   const glance: GlanceItem[] = useMemo(() => {
     const extra = chosenProjects.map((p) => projectGlance(p, gov.logs, prev, cur)).filter((g): g is NonNullable<typeof g> => !!g);
     return [...report.glance, ...extra];
@@ -276,7 +303,7 @@ export function ReportBuilder() {
       rows.push(['Total', ...sec.columns.map((c) => sec.total.prev[c.key]), ...sec.columns.map((c) => sec.total.cur[c.key]), sec.total.delta]);
       rows.push([]);
     }
-    for (const b of projBlocks) {
+    for (const b of slideBlocks) {
       rows.push([b.tag ? `${b.title} · ${b.tag}` : b.title]);
       rows.push(b.head.map((x) => x.replace('\n', ' ')));
       b.rows.forEach((r) => rows.push(r));
@@ -458,6 +485,31 @@ export function ReportBuilder() {
               </div>
             </div>
           )}
+          {adhocChoices.length > 0 && (
+            <div className="rb-group">
+              <span className="rb-label">Ad-Hoc Task tables</span>
+              <span className="muted" style={{ fontSize: 12 }}>
+                One table per person: SKUs by task type, {prev.short} vs {cur.short} (Governance Main tab).
+              </span>
+              <div className="rb-checks" style={{ maxHeight: 200 }}>
+                {adhocChoices.map((c) => (
+                  <label key={c.name}>
+                    <input
+                      type="checkbox"
+                      checked={s.adhocPeople.some((x) => x.toLowerCase() === c.name.toLowerCase())}
+                      onChange={(e) =>
+                        update({ adhocPeople: e.target.checked ? [...s.adhocPeople, c.name] : s.adhocPeople.filter((x) => x.toLowerCase() !== c.name.toLowerCase()) })
+                      }
+                    />
+                    <span style={{ flex: 1 }}>
+                      {c.name}
+                      <span className="meta"> · {fmtNum(c.skus)} SKUs</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input type="checkbox" checked={s.showGlance} onChange={(e) => update({ showGlance: e.target.checked })} />
             Show “At a Glance” panel
@@ -546,7 +598,7 @@ export function ReportBuilder() {
                 showGlance={s.showGlance}
                 generatedAt={generatedAt}
                 markNew={s.markNew === 'auto'}
-                blocks={projBlocks}
+                blocks={slideBlocks}
               />
             </div>
           </div>
