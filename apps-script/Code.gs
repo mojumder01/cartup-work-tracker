@@ -23,7 +23,7 @@
  *   GITHUB_TOKEN = fine-grained token (only this repo, "Actions: Read and write"), GITHUB_REPO = owner/repo.
  */
 
-var SCRIPT_VERSION = '2.1.0';
+var SCRIPT_VERSION = '2.1.1';
 
 var WORK_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
 var GOVERNANCE_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
@@ -47,8 +47,8 @@ var COMMERCIAL_MAP = {
 };
 /** JOB ID column of the Content/Commercial tab when its header is not "JOB ID" (Script Property COMMERCIAL_JOB_COL overrides). */
 var COMMERCIAL_JOB_COL = 'S';
-/** Fallback match when no JOB ID is found: all of these columns that both tabs have. */
-var COMMERCIAL_MATCH = ['Timestamp', 'Seller Code', 'Shop Name', 'Number of SKU', 'Task Type'];
+/** Fallback match when the JOB ID is not in that tab: all of these columns (exact values). */
+var COMMERCIAL_MATCH = ['Timestamp', 'Seller Code'];
 
 var WORK_WRITABLE = ['Status', 'Uploaded SKU Count', 'Rejected SKU Count', 'Upload date', 'Upload Month', 'Comments', 'Uploaded by',
   'Visual editor', 'Image Status', 'Image count', 'Edited (By Hand)', 'Edited (By AI)', 'Image Delivered Date',
@@ -286,31 +286,37 @@ function mirror_(W, row, cache) {
     var last = C.sh.getLastRow();
     if (last <= C.headerRow) return { ok: false, written: [], skipped: [], reason: 'the Content/Commercial tab is empty' };
 
-    // Find the row: JOB ID if the tab has that column, otherwise every COMMERCIAL_MATCH column both tabs have.
+    // Find the row: by JOB ID (column "JOB ID", else COMMERCIAL_JOB_COL). Rows without a JOB ID (newer
+    // form responses) are found by the form Timestamp + Seller Code (or Shop Name); their empty JOB ID
+    // cell is then filled in so the next save matches directly. More than one match → nothing is changed.
     var target = -1;
-    var how;
+    var how = 'JOB ID';
+    var fillJob = false;
     var letter = String(prop_('COMMERCIAL_JOB_COL') || COMMERCIAL_JOB_COL).toUpperCase();
     var jobCol = C.col('JOB ID') || (/^[A-Z]{1,2}$/.test(letter) ? letter.split('').reduce(function (z, ch) { return z * 26 + ch.charCodeAt(0) - 64; }, 0) : 0);
-    if (jobCol && W.col('JOB ID') && norm_(srcOf('JOB ID'))) {
-      how = 'JOB ID';
-      var id = norm_(srcOf('JOB ID'));
-      var hit = C.sh.getRange(C.headerRow + 1, jobCol, last - C.headerRow, 1).createTextFinder(id).matchEntireCell(true).matchCase(false).findNext();
-      target = hit ? hit.getRow() : -1;
-    } else {
+    var id = norm_(srcOf('JOB ID'));
+    if (jobCol && id) {
+      var hits = C.sh.getRange(C.headerRow + 1, jobCol, last - C.headerRow, 1).createTextFinder(id).matchEntireCell(true).matchCase(false).findAll();
+      if (hits.length > 1) return { ok: false, written: [], skipped: [], reason: 'JOB ID ' + id + ' is in ' + hits.length + ' rows of the Content/Commercial tab — fix the duplicate first; not changed' };
+      if (hits.length === 1) target = hits[0].getRow();
+    }
+    if (target < 0) {
       var keys = COMMERCIAL_MATCH.filter(function (k) { return C.col(k) && W.col(k) && norm_(srcOf(k)) !== ''; });
-      if (keys.indexOf('Timestamp') < 0) return { ok: false, written: [], skipped: [], reason: 'no JOB ID or Timestamp to match the row' };
-      how = keys.join(' + ');
+      if (keys.indexOf('Timestamp') < 0 || keys.length < 2) return { ok: false, written: [], skipped: [], reason: 'JOB ID ' + id + ' not found, and no Timestamp + Seller Code to find the row' };
+      how = 'JOB ID not found; matched by ' + keys.join(' + ');
       var want = keys.map(function (k) { return norm_(srcOf(k)).toLowerCase(); });
       var data = C.sh.getRange(C.headerRow + 1, 1, last - C.headerRow, C.width).getValues();
-      var hits = [];
+      var found = [];
       for (var i = 0; i < data.length; i++) {
+        if (jobCol && norm_(data[i][jobCol - 1]) !== '') continue; // rows that already have a (different) JOB ID are not candidates
         var ok = keys.every(function (k, j) { return norm_(data[i][C.col(k) - 1]).toLowerCase() === want[j]; });
-        if (ok) hits.push(C.headerRow + 1 + i);
+        if (ok) found.push(C.headerRow + 1 + i);
       }
-      if (hits.length > 1) return { ok: false, written: [], skipped: [], reason: hits.length + ' rows match (' + how + ') — not changed' };
-      target = hits.length ? hits[0] : -1;
+      if (found.length > 1) return { ok: false, written: [], skipped: [], reason: found.length + ' rows match (' + keys.join(' + ') + ') — not changed' };
+      target = found.length ? found[0] : -1;
+      fillJob = target > 0 && !!jobCol && !!id;
     }
-    if (target < 0) return { ok: false, written: [], skipped: [], reason: 'no matching row (' + how + ')' };
+    if (target < 0) return { ok: false, written: [], skipped: [], reason: 'JOB ID ' + id + ' not found in the Content/Commercial tab (also no row with the same Timestamp + Seller Code)' };
 
     var written = [];
     var skipped = [];
@@ -324,7 +330,11 @@ function mirror_(W, row, cache) {
       cell.setValue(values[f]);
       written.push(name);
     });
-    return { ok: true, row: target, written: written, skipped: skipped };
+    if (fillJob && !isFormula_(C, target, jobCol)) {
+      C.sh.getRange(target, jobCol).setValue(id);
+      written.push('JOB ID');
+    }
+    return { ok: true, row: target, how: how, written: written, skipped: skipped };
   } catch (err) {
     return { ok: false, written: [], skipped: [], reason: String(err && err.message ? err.message : err) };
   }
