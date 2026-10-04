@@ -36,7 +36,7 @@ export function ConnectionsCard() {
     }
     window.location.reload();
   };
-  const [ping, setPing] = useState<{ ok: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; account?: string; version?: string; error?: string } | null>(null);
+  const [ping, setPing] = useState<{ ok: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; commercial?: boolean; commercialError?: string; account?: string; version?: string; error?: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const repoUrl = BUILD.repo ? `https://github.com/${BUILD.repo}` : null;
 
@@ -51,9 +51,9 @@ export function ConnectionsCard() {
               : `HTTP ${r.status} from the Web app. Check Deploy → Manage deployments: Execute as Me, Who has access Anyone.`,
           );
         }
-        return readAppsScriptJson<{ ok?: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; account?: string; version?: string }>(r);
+        return readAppsScriptJson<{ ok?: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; commercial?: boolean; commercialError?: string; account?: string; version?: string }>(r);
       })
-      .then((j) => setPing({ ok: !!j.ok, sync: !!j.sync, sheet: j.sheet, sheetError: j.sheetError ?? undefined, work: j.work, workError: j.workError ?? undefined, account: j.account ?? undefined, version: j.version ?? '' }))
+      .then((j) => setPing({ ok: !!j.ok, sync: !!j.sync, sheet: j.sheet, sheetError: j.sheetError ?? undefined, work: j.work, workError: j.workError ?? undefined, commercial: j.commercial, commercialError: j.commercialError ?? undefined, account: j.account ?? undefined, version: j.version ?? '' }))
       .catch((e) => setPing({ ok: false, error: (e as Error).message || 'Not reachable — check the deployment access is “Anyone”.' }));
   }, [url]);
 
@@ -217,6 +217,12 @@ export function ConnectionsCard() {
               Open the form ↗
             </a>
             {!ping.work && ping.workError && <span style={{ color: 'var(--bad)', display: 'block', marginTop: 4 }}>{ping.workError}</span>}
+          </p>
+        )}
+        {ping?.ok && ping.commercial !== undefined && (
+          <p style={{ fontSize: 13, marginTop: 0 }}>
+            <Ok ok={!!ping.commercial}>Job desk {ping.commercial ? 'can also update' : 'cannot update'} “Cartup Work Tracker Content/Commercial” → Uplaod Responses Form</Ok>
+            {!ping.commercial && ping.commercialError && <span style={{ color: 'var(--bad)', display: 'block', marginTop: 4 }}>{ping.commercialError}</span>}
           </p>
         )}
         {ping?.ok && ping.sheet === false && (

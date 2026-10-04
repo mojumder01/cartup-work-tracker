@@ -80,6 +80,9 @@ export function TaskForm() {
   const [cfg, setCfg] = useState<FormConfig | null>(null);
   const [cfgError, setCfgError] = useState<string | null>(null);
   const [who, setWho] = useStored('cartup.formUser', '');
+  // Also copy the changes to the Content/Commercial sheet (on by default; remembered in this browser).
+  const [mirrorPref, setMirrorPref] = useStored('cartup.mirrorCommercial', 'yes');
+  const mirror = mirrorPref !== 'no';
   const [jobInput, setJobInput] = useState(() => new URLSearchParams(location.search).get('job') ?? '');
   const [tab, setTab] = useState<'search' | 'update'>(() => (new URLSearchParams(location.search).get('job') ? 'update' : 'search'));
   const [checking, setChecking] = useState(false);
@@ -203,7 +206,7 @@ export function TaskForm() {
       // Credit the work to the person submitting when nobody is set as uploader yet.
       if (!text(job['Uploaded by']) && who.trim()) set['Uploaded by'] = who.trim();
       const expect = Object.fromEntries([...fields, 'Uploaded by'].map((k) => [k, jobRow[k] ?? null]));
-      const [j] = await scriptWrite(url, who.trim(), [{ sheet: 'work', op: 'update', key: job['JOB ID'], set, expect }]);
+      const [j] = await scriptWrite(url, who.trim(), [{ sheet: 'work', op: 'update', key: job['JOB ID'], set, expect, mirror }]);
       if (!j.ok) {
         throw new Error(
           j.stale
@@ -212,11 +215,32 @@ export function TaskForm() {
         );
       }
       const skipped = (j.skipped ?? []).map((x) => `${x.field} (${x.reason})`);
+      // Content/Commercial copy: an older Apps Script ignores "mirror" and returns nothing for it.
+      let mirrorText = '';
+      let mirrorWarn = false;
+      if (mirror && (j.written ?? []).length) {
+        const m = j.mirror;
+        if (!m) {
+          mirrorWarn = true;
+          mirrorText = ' Content/Commercial sheet NOT updated — the Apps Script needs the latest version (Settings → Connections).';
+        } else if (!m.ok) {
+          mirrorWarn = true;
+          mirrorText = ` Content/Commercial sheet NOT updated: ${m.reason}.`;
+        } else {
+          const ms = (m.skipped ?? []).map((x) => `${x.field} (${x.reason})`);
+          mirrorText = m.written.length ? ` Content/Commercial updated: ${m.written.join(', ')}.` : ' Content/Commercial already matches.';
+          if (ms.length) {
+            mirrorWarn = true;
+            mirrorText += ` Not copied: ${ms.join(', ')}.`;
+          }
+        }
+      }
       setResult({
-        tone: skipped.length ? 'warn' : 'good',
+        tone: skipped.length || mirrorWarn ? 'warn' : 'good',
         text:
           `Saved to the Work Sheet for ${job['JOB ID']}: ${(j.written ?? []).join(', ') || 'no changes'}.` +
           (skipped.length ? ` Not changed: ${skipped.join(', ')}.` : '') +
+          mirrorText +
           ' Reports include it after the next data update.',
       });
       await check(job['JOB ID'], true);
@@ -382,6 +406,13 @@ export function TaskForm() {
             ))}
             {problems.length > 0 && <div className="tf-msg bad">{problems.join(' ')}</div>}
             {result && <div className={`tf-msg ${result.tone}`}>{result.text}</div>}
+            <label className="tf-check">
+              <input type="checkbox" checked={mirror} onChange={(e) => setMirrorPref(e.target.checked ? 'yes' : 'no')} />
+              <span>
+                Also update <b>Cartup Work Tracker Content/Commercial</b> (Uplaod Responses Form)
+                <small>{mirror ? 'Both sheets' : 'Only the Work Tracker'}</small>
+              </span>
+            </label>
             <div className="tf-actions">
               <span className="tf-hint" style={{ marginRight: 'auto', alignSelf: 'center' }}>
                 {Object.keys(changes).length ? `Will update: ${Object.keys(changes).join(', ')}` : 'No changes yet'}
@@ -390,7 +421,7 @@ export function TaskForm() {
                 Another JOB ID
               </button>
               <button type="submit" className="btn btn-primary" disabled={busy || problems.length > 0 || !who.trim()}>
-                {busy ? 'Saving…' : 'Save to Work Sheet'}
+                {busy ? 'Saving…' : mirror ? 'Save to both sheets' : 'Save to Work Sheet'}
               </button>
             </div>
           </form>

@@ -191,6 +191,26 @@ The script still enforces these rules:
 
 **One-time setup:** share the main *Cartup Content Work Tracker* sheet with the Apps Script's Google account as **Editor**, paste the latest `apps-script/Code.gs`, and use **Deploy → Manage deployments → ✏️ → Version: New version → Deploy**. Settings → Connections warns when the deployed script is older than the one in this repository.
 
+### Copy to "Cartup Work Tracker Content/Commercial"
+
+Under the Save button, the Job desk has a checkbox **"Also update Cartup Work Tracker Content/Commercial (Uplaod Responses Form)"**. It is on by default and remembered per browser.
+- **On ("Save to both sheets"):** after the Work Sheet row is saved, the Apps Script copies these columns to the row with the same **JOB ID** (column **S**) in that tab:
+
+  | Work Sheet | Content/Commercial |
+  |---|---|
+  | Number of SKU, Uploaded SKU Count | Number of SKU, Uploaded SKU Count |
+  | Status | Upload Status |
+  | Comments | Catalogue Comment |
+  | Approved QC Count / Rejected QC Count | Approved QC Count / Rejected QC Count |
+  | Upload date | Upload Date |
+  | QC approved date | QC Date |
+  | QC Status | QC Status |
+
+  Empty Work Sheet cells never clear the other sheet, and formula columns are skipped. Each copy is recorded in the Form Log.
+- **Off:** only the Work Sheet is updated.
+
+**Needs Apps Script 2.1.0 or later.** The account the script runs as must have **Editor** access to that spreadsheet; Settings → Connections shows whether it can write. Two Script Properties change the behaviour without redeploying: `COMMERCIAL_MAP` (JSON) changes the column mapping, and `COMMERCIAL_JOB_COL` changes the JOB ID column letter.
+
 ## Individual Summary report
 
 **Reports → Individual Summary** builds the Cartup "Individual Summary — Week 37 vs Week 38" slide from live data. It opens on the last completed week vs the week before, so a report is **one click → PDF / Print** (choose "Save as PDF", or it prints on one 16:9 page).
