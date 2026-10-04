@@ -83,6 +83,23 @@ export interface IndividualReport {
   backlog: { prev: number | null; cur: number | null };
 }
 
+/** Same person despite small spelling differences between sheets ("Iftkhar" ↔ "Iftakhar"). */
+function editDistance(a: string, b: string): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+export function matchName(name: string, names: string[]): string | null {
+  const k = name.trim().toLowerCase();
+  const exact = names.find((x) => x.toLowerCase() === k);
+  if (exact) return exact;
+  if (k.length < 4) return null;
+  const close = names.filter((x) => x.length >= 4 && editDistance(x.toLowerCase(), k) <= (k.length >= 7 ? 2 : 1));
+  return close.length === 1 ? close[0] : null;
+}
+
 const inRange = (ms: number | null | undefined, p: Period) => ms != null && ms >= p.start && ms < p.end;
 const n = (v: unknown) => toNumber(v as never) ?? 0;
 
@@ -185,35 +202,37 @@ export function buildIndividualReport({ ds, sellerQc, roster, prev, cur, teams, 
   const sections: ReportSection[] = [];
   const has = (c: string) => ds.has(c);
 
+  // Production = Work Sheet new uploads + Retail [Picks] uploads (separate sheet, by upload date), in one table.
   const prodFields = { sellers: () => 1, skus: (r: Dataset['records'][number]) => n(r.values[C.uploadedSku]) };
+  const retailPrev = teams.includes('Production') && includeRetail ? retailByPerson(retail, prev) : null;
+  const retailCur = teams.includes('Production') && includeRetail ? retailByPerson(retail, cur) : null;
+  const prodNames = [...(people.Production ?? [])];
+  const withRetail = (m: Map<string, Nums>, r: ReturnType<typeof retailByPerson>) => {
+    if (!r) return m;
+    for (const v of r.values()) {
+      const k = matchName(v.name, prodNames)?.toLowerCase() ?? v.name.toLowerCase();
+      const acc = m.get(k) ?? { sellers: 0, skus: 0 };
+      acc.sellers += v.sellers;
+      acc.skus += v.skus;
+      m.set(k, acc);
+    }
+    return m;
+  };
+  // Retail uploaders who are not ticked under Production still get a row.
+  for (const r of [retailPrev, retailCur]) for (const v of r?.values() ?? []) if (!matchName(v.name, prodNames)) prodNames.push(v.name);
   const production = teams.includes('Production')
     ? buildSection(
-        'Production', 'PRODUCTION · New Upload',
+        'Production', retailPrev || retailCur ? 'PRODUCTION · New Upload + Retail Picks' : 'PRODUCTION · New Upload',
         [{ key: 'sellers', label: 'Seller' }, { key: 'skus', label: 'SKUs' }],
-        'skus', 'Δ SKUs', people.Production ?? [], roster,
-        sumBy(ds, C.uploadedBy, C.uploadDate, prev, prodFields), sumBy(ds, C.uploadedBy, C.uploadDate, cur, prodFields),
+        'skus', 'Δ SKUs', prodNames, roster,
+        withRetail(sumBy(ds, C.uploadedBy, C.uploadDate, prev, prodFields), retailPrev), withRetail(sumBy(ds, C.uploadedBy, C.uploadDate, cur, prodFields), retailCur),
         [C.uploadedBy, C.uploadDate, C.uploadedSku].filter((c) => !has(c)),
       )
     : null;
   if (production) sections.push(production);
-
-  // Retail [Picks] uploads (separate sheet): sellers = rows, SKUs = uploaded SKU count, by upload date.
-  let retailSec: ReportSection | null = null;
-  if (teams.includes('Production') && includeRetail) {
-    const a = retailByPerson(retail, prev);
-    const b = retailByPerson(retail, cur);
-    if (a && b && (a.size || b.size)) {
-      const names = [...new Map([...a.values(), ...b.values()].map((x) => [x.name.toLowerCase(), x.name])).values()];
-      retailSec = buildSection(
-        'Production', 'RETAIL PICKS · Upload',
-        [{ key: 'sellers', label: 'Slr' }, { key: 'skus', label: 'SKUs' }],
-        'skus', 'Δ SKUs', names, roster,
-        new Map([...a].map(([k, v]) => [k, { sellers: v.sellers, skus: v.skus }])), new Map([...b].map(([k, v]) => [k, { sellers: v.sellers, skus: v.skus }])), [],
-      );
-      retailSec.id = 'Retail';
-      sections.push(retailSec);
-    }
-  }
+  const retailTotal = (r: ReturnType<typeof retailByPerson>) => [...(r?.values() ?? [])].reduce((z, v) => ({ sellers: z.sellers + v.sellers, skus: z.skus + v.skus }), { sellers: 0, skus: 0 });
+  const rtPrev = retailTotal(retailPrev);
+  const rtCur = retailTotal(retailCur);
 
   const visFields = {
     sellers: () => 1,
@@ -267,7 +286,7 @@ export function buildIndividualReport({ ds, sellerQc, roster, prev, cur, teams, 
     glance.push({ label: 'SKUs Uploaded', prev: production.total.prev.skus, cur: production.total.cur.skus });
     glance.push({ label: 'Upload Backlog', prev: backlog.prev, cur: backlog.cur, lowerIsBetter: true });
   }
-  if (retailSec) glance.push({ label: 'Retail SKUs Uploaded', prev: retailSec.total.prev.skus, cur: retailSec.total.cur.skus });
+  if (retailPrev || retailCur) glance.push({ label: 'Retail Picks SKUs (incl. above)', prev: rtPrev.skus, cur: rtCur.skus });
   if (qc) glance.push({ label: 'Total QC Done', prev: qc.total.prev.total, cur: qc.total.cur.total });
   const pq = pendingQcNow(pendingQc);
   if (pq) {
@@ -304,6 +323,8 @@ export function buildIndividualReport({ ds, sellerQc, roster, prev, cur, teams, 
       line += ` ${perB < perA ? 'Smaller' : 'Larger'} batches per seller (${fmtNum(Math.round(perA))} → ${fmtNum(Math.round(perB))} SKUs/seller).`;
     }
     notes.push(line);
+    if (rtPrev.sellers || rtCur.sellers)
+      notes.push(`Includes Retail [Picks] uploads: ${fmtNum(rtPrev.sellers)} → ${fmtNum(rtCur.sellers)} sellers, ${fmtNum(rtPrev.skus)} → ${fmtNum(rtCur.skus)} SKUs.`);
     const movers = production.rows.filter((r) => r.delta !== null && !r.isNew).sort((x, y) => (y.delta ?? 0) - (x.delta ?? 0));
     if (movers.length > 1) {
       const top = movers[0];

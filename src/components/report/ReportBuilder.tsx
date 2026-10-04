@@ -436,7 +436,7 @@ export function ReportBuilder() {
           {data.extra?.retail && (
             <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <input type="checkbox" checked={s.includeRetail} onChange={(e) => update({ includeRetail: e.target.checked })} />
-              Include Retail [Picks] uploads (own table)
+              Add Retail [Picks] uploads to the Production table
             </label>
           )}
           {myProjects.length > 0 && (

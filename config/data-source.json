@@ -44,7 +44,9 @@
       "label": "Retail [Picks] Upload Request",
       "spreadsheetId": "1YBrZQkge-3Ch-Zkzp10E9HAsOyfMiixQh-zdTb45FD4",
       "gid": 1610558392,
-      "expectedColumns": ["Uploaded By", "Upload Date", "Uploaded SKU Count", "QC By", "QC Date"]
+      "$comment_columns": "Fixed column letters, used instead of header names: skus = the uploaded SKU (picks) count.",
+      "columns": { "skus": "F" },
+      "expectedColumns": ["Uploaded By", "Upload Date", "QC By", "QC Date"]
     },
     "pendingQc": {
       "label": "Admin Portal Pending QC",

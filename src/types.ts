@@ -139,4 +139,6 @@ export interface ExtraTable extends FlatTable {
   spreadsheetTitle: string;
   tabs: string[];
   sheet: string;
+  /** Columns fixed by letter in the config (e.g. skus → the header of column F). */
+  fields?: Record<string, string>;
 }
