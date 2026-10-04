@@ -83,15 +83,18 @@ export const FilterBar = memo(function FilterBar({ showRecordsLink = true }: { s
       dims,
       people: [...people].filter((p) => !isLeft(p) || p === filters.employee).sort((a, b) => a.localeCompare(b)),
       months: [...months.keys()].sort().reverse(),
+      years: [...new Set([...months.keys()].map((m) => m.slice(0, 4)))].sort().reverse(),
       monthCounts: months,
       dateBasis: cfg.dateBasisColumns.filter((c) => dataset.has(c)),
     };
   }, [dataset, cfg, isLeft, filters.employee]);
 
   const dimControl = (column: string) => {
-    const opts = options.dims[column];
-    if (!opts) return null;
     const value = filters.dims[column] ?? '';
+    const personCol = cfg.employeeFilterColumns.includes(column);
+    // Name columns: people who left are not offered (a chosen one stays visible).
+    const opts = personCol ? options.dims[column]?.filter((o) => !isLeft(o) || o === value) : options.dims[column];
+    if (!opts) return null;
     if (opts.length > TYPEAHEAD_THRESHOLD) {
       return <TypeaheadFilter key={column} column={column} value={value} options={opts} onChange={(v) => setDim(column, v)} />;
     }
@@ -108,6 +111,7 @@ export const FilterBar = memo(function FilterBar({ showRecordsLink = true }: { s
     const range = filters.datePreset === 'custom' ? ` ${filters.dateFrom || '…'} → ${filters.dateTo || '…'}` : '';
     chips.push({ label: `${filters.dateBasis}: ${p}${range}`, clear: () => setFilters((f) => ({ ...f, datePreset: 'all', dateFrom: '', dateTo: '' })) });
   }
+  if (filters.year) chips.push({ label: `Year: ${filters.year}`, clear: () => setFilters((f) => ({ ...f, year: '' })) });
   if (filters.month) {
     const l = filters.month === '__current' || filters.month === '__previous' ? `${filters.month === '__current' ? 'Current' : 'Previous'} (${monthLabel(resolveMonth(filters.month) as string)})` : monthLabel(filters.month);
     chips.push({ label: `Month: ${l}`, clear: () => setFilters((f) => ({ ...f, month: '' })) });
@@ -146,6 +150,19 @@ export const FilterBar = memo(function FilterBar({ showRecordsLink = true }: { s
             </label>
           </>
         )}
+        {options.years.length > 1 && (
+          <SelectFilter
+            label="Year"
+            value={filters.year ?? ''}
+            allLabel="All years"
+            // A month from another year would leave nothing to show, so it is cleared.
+            onChange={(v) => setFilters((f) => ({ ...f, year: v, month: v && /^\d{4}-/.test(f.month) && !f.month.startsWith(v) ? '' : f.month }))}
+            options={options.years.map((y) => {
+              const rows = [...options.monthCounts.entries()].filter(([m]) => m.startsWith(y)).reduce((z, [, n]) => z + n, 0);
+              return { value: y, label: `${y} (${rows.toLocaleString('en-US')})` };
+            })}
+          />
+        )}
         <SelectFilter
           label="Month"
           value={filters.month}
@@ -156,7 +173,7 @@ export const FilterBar = memo(function FilterBar({ showRecordsLink = true }: { s
               const key = resolveMonth(v) as string;
               return { value: v, label: `${v === '__current' ? 'Current' : 'Previous'} month — ${monthLabel(key)} (${(options.monthCounts.get(key) ?? 0).toLocaleString('en-US')} rows)` };
             }),
-            ...options.months.map((m) => ({ value: m, label: `${monthLabel(m)} (${(options.monthCounts.get(m) ?? 0).toLocaleString('en-US')})` })),
+            ...options.months.filter((m) => !filters.year || m.startsWith(filters.year)).map((m) => ({ value: m, label: `${monthLabel(m)} (${(options.monthCounts.get(m) ?? 0).toLocaleString('en-US')})` })),
           ]}
         />
         {primary.map(dimControl)}

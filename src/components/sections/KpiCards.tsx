@@ -8,8 +8,10 @@ import { headlineSub, headlineTitle } from './KpiSections';
 
 /** The eight headline tiles. Clicking a tile drills into the matching Work Sheet records. */
 export const KpiCards = memo(function KpiCards() {
-  const { dataset, filtered, kpi, setDrill, navigate } = useApp();
-  const s = useMemo(() => summarize(dataset, filtered), [dataset, filtered]);
+  const { dataset, roleFiltered, kpi, setDrill, navigate } = useApp();
+  // With an Employee chosen: upload tiles = jobs they uploaded, QC tiles = jobs they QC'd.
+  const s = useMemo(() => summarize(dataset, roleFiltered(C.uploadedBy)), [dataset, roleFiltered]);
+  const q = useMemo(() => summarize(dataset, roleFiltered(C.qcBy)), [dataset, roleFiltered]);
   const g = dashboardConfig.statusGroups;
   const drillStatus = (label: string, values: string[]) =>
     dataset.has(C.status) ? () => setDrill({ label: `${label} (${C.status}: ${values.join(', ')})`, column: C.status, op: 'in', values }, 'work') : undefined;
@@ -50,19 +52,19 @@ export const KpiCards = memo(function KpiCards() {
       />
       <KpiCard
         label="QC Approved"
-        value={fmtCompact(s.approvedQc)}
-        sub={s.approvedQc === null ? `"${C.approvedQc}" missing` : <>Approval rate <b>{fmtPct(s.qcApprovalRate)}</b></>}
+        value={fmtCompact(q.approvedQc)}
+        sub={q.approvedQc === null ? `"${C.approvedQc}" missing` : <>Approval rate <b>{fmtPct(q.qcApprovalRate)}</b></>}
         color="var(--series-7)"
         onClick={drillGt0(C.approvedQc)}
-        title={fmtNum(s.approvedQc)}
+        title={fmtNum(q.approvedQc)}
       />
       <KpiCard
         label="QC Rejected"
-        value={fmtCompact(s.rejectedQc)}
-        sub={s.rejectedQc === null ? `"${C.rejectedQc}" missing` : <>{fmtPct(s.qcApprovalRate === null ? null : 100 - s.qcApprovalRate)} of QC’d SKU</>}
+        value={fmtCompact(q.rejectedQc)}
+        sub={q.rejectedQc === null ? `"${C.rejectedQc}" missing` : <>{fmtPct(q.qcApprovalRate === null ? null : 100 - q.qcApprovalRate)} of QC’d SKU</>}
         color="var(--bad)"
         onClick={drillGt0(C.rejectedQc)}
-        title={fmtNum(s.rejectedQc)}
+        title={fmtNum(q.rejectedQc)}
       />
       <KpiCard
         label="KPI Achievement %"

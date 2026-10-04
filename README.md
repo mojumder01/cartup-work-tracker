@@ -125,6 +125,19 @@ The **KPI Achievement %** headline card is the average of the team-level monthly
 
 ---
 
+## Dashboard filters
+
+The filters are Date, **Year**, Month, Vertical, Task Type, Status and **Employee**. **More filters** adds Uploaded by, QC By, Visual editor, Shop Name, L1 Category and the choice of which date the Date filter applies to.
+
+- **Year** limits everything to one year; the Month list then shows only that year's months.
+- **Employee** shows that person's **own** work in each role:
+  - upload numbers count the jobs they uploaded;
+  - QC numbers count the jobs they QC'd;
+  - image numbers count the jobs they edited;
+  - person tables list only them.
+
+  The record list shows every job they worked on in any role.
+
 ## What counts for an employee
 
 Every per-person number (Team Performance, the person charts, Team Member page, Individual Summary, the per-role exports and the employee detail report) uses one rule, set in `credit` in `src/config/dashboard.config.ts`:
