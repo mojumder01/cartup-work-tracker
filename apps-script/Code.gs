@@ -23,7 +23,7 @@
  *   GITHUB_TOKEN = fine-grained token (only this repo, "Actions: Read and write"), GITHUB_REPO = owner/repo.
  */
 
-var SCRIPT_VERSION = '2.1.5';
+var SCRIPT_VERSION = '2.1.6';
 
 var WORK_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
 var GOVERNANCE_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
@@ -48,7 +48,7 @@ var COMMERCIAL_MAP = {
 /** JOB ID column of the Content/Commercial tab when its header is not "JOB ID" (Script Property COMMERCIAL_JOB_COL overrides). */
 var COMMERCIAL_JOB_COL = 'S';
 
-var WORK_WRITABLE = ['Status', 'Uploaded SKU Count', 'Rejected SKU Count', 'Upload date', 'Upload Month', 'Comments', 'Uploaded by',
+var WORK_WRITABLE = ['Status', 'Number of SKU', 'Uploaded SKU Count', 'Rejected SKU Count', 'Upload date', 'Upload Month', 'Comments', 'Uploaded by',
   'Visual editor', 'Image Status', 'Image count', 'Edited (By Hand)', 'Edited (By AI)', 'Image Delivered Date',
   'QC By', 'QC Status', 'Approved QC Count', 'Rejected QC Count', 'QC approved date'];
 

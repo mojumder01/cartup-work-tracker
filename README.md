@@ -191,6 +191,29 @@ The script still enforces these rules:
 
 **One-time setup:** share the main *Cartup Content Work Tracker* sheet with the Apps Script's Google account as **Editor**, paste the latest `apps-script/Code.gs`, and use **Deploy → Manage deployments → ✏️ → Version: New version → Deploy**. Settings → Connections warns when the deployed script is older than the one in this repository.
 
+### Saving "Done" on the Job desk
+
+- **QC Status:** when a job is saved as **Done**, QC Status is set to **QC Pending** (unless it already has a QC result for this upload).
+- **Number of SKU:** set to the **Uploaded SKU Count** the employee enters.
+- **Both sheets:** both changes are also copied to Content/Commercial when "Also update" is ticked.
+- **Needs Apps Script 2.1.6 or later**, which allows Number of SKU to be written.
+
+### Daily report message (Task board)
+
+Open **Daily report message** on the Task board and pick a day. It writes the team-chat message, ready to copy and edit before copying:
+
+```
+24/09/2026
+Uploaded SKUs: 5,413 (Seller Done 22)
+Image Edited: 21,643 (Seller 17)
+Seller Upload Pending: 79 Seller
+```
+
+How each line is counted:
+- **Uploaded SKUs:** Uploaded SKU Count of jobs marked Done with that Upload date. *Seller Done* is the number of those jobs.
+- **Image Edited:** total Image count of jobs with that Image Delivered Date. *Seller* is the number of those jobs.
+- **Seller Upload Pending:** jobs requested by the end of that day and not uploaded by then. Rejected jobs are left out.
+
 ### Copy to "Cartup Work Tracker Content/Commercial"
 
 Under the Save button, the Job desk has a checkbox **"Also update Cartup Work Tracker Content/Commercial (Uplaod Responses Form)"**. It is on by default and remembered per browser.
@@ -209,7 +232,7 @@ Under the Save button, the Job desk has a checkbox **"Also update Cartup Work Tr
   Empty Work Sheet cells never clear the other sheet, and formula columns are skipped. Each copy is recorded in the Form Log.
 - **Off:** only the Work Sheet is updated.
 
-**Needs Apps Script 2.1.5 or later.** The account the script runs as must have **Editor** access to that spreadsheet; Settings → Connections shows whether it can write. Two Script Properties change the behaviour without redeploying: `COMMERCIAL_MAP` (JSON) changes the column mapping, and `COMMERCIAL_JOB_COL` changes the JOB ID column letter.
+**Needs Apps Script 2.1.6 or later.** The account the script runs as must have **Editor** access to that spreadsheet; Settings → Connections shows whether it can write. Two Script Properties change the behaviour without redeploying: `COMMERCIAL_MAP` (JSON) changes the column mapping, and `COMMERCIAL_JOB_COL` changes the JOB ID column letter.
 
 ## Individual Summary report
 

@@ -7,6 +7,7 @@
  */
 import { BuiltBy } from '../components/BuiltBy';
 import { makeIsLeft } from '../services/leftPeople';
+import { DailyReport } from './DailyReport';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { scriptRead, scriptWrite, withAnyUrl, type WriteOp } from '../services/scriptApi';
 
@@ -337,6 +338,8 @@ export function AssignForm() {
 
         {cfg && !candidates.length && <div className="tf-msg bad">Not connected: the Apps Script Web app URL is missing.</div>}
         {err && <div className="tf-msg bad">{err}</div>}
+
+        {candidates.length > 0 && <DailyReport urls={candidates} />}
 
         <div className="ab-roles" role="tablist" aria-label="Work type">
           {(Object.keys(ROLES) as RoleKey[]).map((k) => (
