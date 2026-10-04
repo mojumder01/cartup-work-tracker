@@ -194,7 +194,7 @@ The script still enforces these rules:
 ### Copy to "Cartup Work Tracker Content/Commercial"
 
 Under the Save button, the Job desk has a checkbox **"Also update Cartup Work Tracker Content/Commercial (Uplaod Responses Form)"**. It is on by default and remembered per browser.
-- **On ("Save to both sheets"):** after the Work Sheet row is saved, the Apps Script copies these columns to the row with the same **JOB ID** (column **S**) in that tab:
+- **On ("Save to both sheets"):** after the Work Sheet row is saved, the Apps Script copies these columns to the row with the same **JOB ID** (column **S**) in that tab. Newer form rows without a JOB ID are found instead by the exact form **Timestamp + Seller Code**, and the JOB ID is then filled into column S. If a JOB ID appears twice (e.g. CCWT2496) or several rows match, nothing is changed and the form says why. Columns copied:
 
   | Work Sheet | Content/Commercial |
   |---|---|
@@ -209,7 +209,7 @@ Under the Save button, the Job desk has a checkbox **"Also update Cartup Work Tr
   Empty Work Sheet cells never clear the other sheet, and formula columns are skipped. Each copy is recorded in the Form Log.
 - **Off:** only the Work Sheet is updated.
 
-**Needs Apps Script 2.1.0 or later.** The account the script runs as must have **Editor** access to that spreadsheet; Settings → Connections shows whether it can write. Two Script Properties change the behaviour without redeploying: `COMMERCIAL_MAP` (JSON) changes the column mapping, and `COMMERCIAL_JOB_COL` changes the JOB ID column letter.
+**Needs Apps Script 2.1.1 or later.** The account the script runs as must have **Editor** access to that spreadsheet; Settings → Connections shows whether it can write. Two Script Properties change the behaviour without redeploying: `COMMERCIAL_MAP` (JSON) changes the column mapping, and `COMMERCIAL_JOB_COL` changes the JOB ID column letter.
 
 ## Individual Summary report
 
