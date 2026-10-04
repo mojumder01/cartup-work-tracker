@@ -63,6 +63,18 @@ export interface WriteResult {
 
 const looksOld = (msg: string) => /unknown action|unknown sheet/i.test(msg);
 
+/** fetch() that explains an unreachable Web app (archived / deleted deployment, wrong URL) in plain words. */
+async function call(url: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch {
+    const id = url.match(/\/s\/([\w-]+)\/exec/)?.[1] ?? '';
+    throw new Error(
+      `Could not reach the Apps Script Web app …${id.slice(-21)}. If that deployment was archived or replaced, paste the current Web app URL (Manage deployments → Web app → URL) under “Change connection” at the bottom of this page, and update the GitHub variable GOVERNANCE_APPS_SCRIPT_URL.`,
+    );
+  }
+}
+
 export async function scriptRead(url: string, p: ReadParams): Promise<ReadResult> {
   const q = new URLSearchParams({ action: 'read', sheet: p.sheet, t: String(Date.now()) });
   if (p.cols) q.set('cols', p.cols.join(','));
@@ -74,7 +86,7 @@ export async function scriptRead(url: string, p: ReadParams): Promise<ReadResult
   if (p.need) q.set('need', p.need.join('|'));
   if (p.order) q.set('order', p.order);
   if (p.limit) q.set('limit', String(p.limit));
-  const res = await fetch(`${url}?${q.toString()}`);
+  const res = await call(`${url}?${q.toString()}`);
   if (!res.ok) throw new Error(`The Google Sheets service returned HTTP ${res.status}.`);
   const j = await readAppsScriptJson<{ ok: boolean; error?: string; columns?: string[]; rows?: Cell[][]; total?: number; locked?: string[] }>(res);
   if (!j.ok) {
@@ -95,7 +107,7 @@ export async function scriptRead(url: string, p: ReadParams): Promise<ReadResult
 export async function scriptWrite(url: string, by: string, ops: WriteOp[]): Promise<WriteResult[]> {
   const out: WriteResult[] = [];
   for (let i = 0; i < ops.length; i += 200) {
-    const res = await fetch(url, {
+    const res = await call(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'write', by, ops: ops.slice(i, i + 200) }),
@@ -120,7 +132,7 @@ export async function withAnyUrl<T>(urls: string[], fn: (url: string) => Promise
       return { value: await fn(u), url: u };
     } catch (e) {
       last = e as Error;
-      if (!(e instanceof OldScriptError) && !/HTTP|fetch|network|Google page/i.test(last.message)) break;
+      if (!(e instanceof OldScriptError) && !/HTTP|fetch|network|Google page|could not reach/i.test(last.message)) break;
     }
   }
   throw last;
