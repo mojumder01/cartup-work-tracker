@@ -513,3 +513,6 @@ table.data tfoot td { font-weight: 700; background: var(--surface-2); position: 
 .sync-banner span { flex: 1; }
 .sync-banner.done { background: var(--good-soft); }
 .sync-banner.error { background: var(--bad-soft); }
+
+/* "Built by …" credit (dashboard, Job desk, Task board) */
+.built-by { text-align: center; font-size: 12px; color: var(--ink-3); padding: 18px 0 4px; letter-spacing: 0.02em; }

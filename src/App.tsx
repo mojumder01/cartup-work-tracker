@@ -24,6 +24,7 @@ import GovProjectsPage from './pages/GovProjectsPage';
 import { GovernanceProvider, localAppsScriptUrl } from './hooks/useGovernance';
 import SettingsPage, { type Theme } from './pages/SettingsPage';
 import { QcPage, UploadPage, VisualPage } from './pages/SectionPages';
+import { BuiltBy } from './components/BuiltBy';
 
 /** Pages that do not depend on the Work Sheet filters. */
 const NO_FILTER_ROUTES: Route[] = ['kpi', 'settings', 'people', 'reports', 'gov-tasks', 'gov-projects'];
@@ -161,6 +162,7 @@ export default function App() {
           <ErrorBoundary resetKey={route}>
             <Page route={route} prefs={prefs} />
           </ErrorBoundary>
+          <BuiltBy />
         </main>
       </Shell>
       </GovernanceProvider>

@@ -6,6 +6,7 @@
  */
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { SearchPanel } from './SearchPanel';
+import { BuiltBy } from '../components/BuiltBy';
 import { asDate, asMonth, scriptRead, scriptWrite, withAnyUrl, type WriteValue } from '../services/scriptApi';
 
 const JOB_COLUMNS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'KAM', 'Number of SKU', 'Status', 'Uploaded by', 'Uploaded SKU Count', 'Rejected SKU Count', 'Upload date', 'Upload Month', 'QC By', 'QC Status', 'Visual editor', 'Image Status', 'Image count', 'Comments'];
@@ -457,6 +458,7 @@ export function TaskForm() {
           </>
         )}
 
+        <BuiltBy />
       </div>
     </div>
   );
