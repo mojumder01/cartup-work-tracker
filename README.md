@@ -143,6 +143,25 @@ Work that is assigned but still **Running / Pending** (or Rejected) is **not** c
 - **Not counted**: assigned work that was not counted, and why.
 - **Governance Ad-Hoc / REVAMP progress**: included when the person appears there.
 
+## Apps Script: stable service + auto-deploy
+
+Since **v2.0** `apps-script/Code.gs` is a small, general **read rows / write cells** service. The Job desk, Task board and Governance pages build their requests in the website, which GitHub updates automatically, so **new features normally need no Apps Script change**.
+
+The script still enforces these rules:
+- **Sheets:** only the sheets listed in `SHEETS` can be read or written.
+- **Writable columns (Work Sheet):** only the columns in `WORK_WRITABLE` can be changed. To change that list without redeploying, set the Script Property `WRITABLE_WORK`.
+- **Hidden columns:** login, password, phone and mail columns are never read or written.
+- **Formula columns:** never overwritten.
+- **`expect` check:** if a row changed after the person loaded it, nothing is written for that row.
+- **Form Log:** every Work Sheet change is logged there.
+
+**Apps Script auto-deploy (optional).** For the rare times the script itself changes, the workflow `.github/workflows/apps-script.yml` pushes it with Google's `clasp` tool and updates the **existing** Web app deployment, so the URL stays the same. It skips itself until these are set:
+1. Turn on *Google Apps Script API* at <https://script.google.com/home/usersettings>.
+2. In Google Cloud Shell, run `npx @google/clasp@2.4.2 login --no-localhost`, then `cat ~/.clasprc.json`. Save the output as the GitHub **secret** `CLASPRC_JSON`. It is a login key for that Google account, so keep the repository's collaborators to people you trust.
+3. Copy the Apps Script **Script ID** (Project Settings) into the GitHub **variable** `APPS_SCRIPT_ID`. The deployment is taken from `GOVERNANCE_APPS_SCRIPT_URL`; to use a different one, set `APPS_SCRIPT_DEPLOYMENT_ID`.
+
+`apps-script/appsscript.json` is the project manifest (time zone Asia/Dhaka, V8, Web app: execute as owner, access: anyone).
+
 ## Job desk (employees) and Assign page (team leads)
 
 | Page | Who | URL |

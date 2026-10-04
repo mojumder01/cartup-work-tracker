@@ -6,7 +6,9 @@
  * written if a row changed after the list was loaded.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { readAppsScriptJson } from '../services/appsScriptResponse';
+import { scriptRead, scriptWrite, withAnyUrl, type WriteOp } from '../services/scriptApi';
+
+const QUEUE_COLUMNS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'KAM', 'L1 Category', 'Number of SKU', 'Status', 'Uploaded by', 'Uploaded SKU Count', 'Upload date', 'Visual editor', 'Image Status', 'QC By', 'QC Status'];
 import { LOCAL_URL_KEY, localAppsScriptUrl } from '../services/appsScriptUrl';
 
 type Cell = string | number | null;
@@ -112,25 +114,24 @@ export function AssignForm() {
     if (!candidates.length) return;
     setLoading(true);
     setErr(null);
-    let last = '';
-    for (const u of candidates) {
-      try {
-        const r = await fetch(`${u}?action=queue&days=${days}&t=${Date.now()}`);
-        if (!r.ok) throw new Error(`The Google Sheets service returned HTTP ${r.status}.`);
-        const j = await readAppsScriptJson<{ ok: boolean; error?: string; columns?: string[]; rows?: Cell[][] }>(r);
-        if (!j.ok) throw new Error(j.error || 'Could not load the jobs.');
-        if (!Array.isArray(j.rows) || !j.columns) throw new Error('The Apps Script Web app is an older version — paste the latest Code.gs and deploy a New version.');
-        const cols = j.columns;
-        setJobs(j.rows.map((row) => Object.fromEntries(cols.map((c, i) => [c, row[i] ?? null]))));
-        setLoadedAt(Date.now());
-        setWorkingUrl(u);
-        setLoading(false);
-        return;
-      } catch (e) {
-        last = (e as Error).message;
-      }
+    try {
+      const { value, url } = await withAnyUrl(candidates, (u) =>
+        scriptRead(u, {
+          sheet: 'work',
+          cols: QUEUE_COLUMNS,
+          notIn: { col: 'Status', values: ['Done', 'Rejected'] },
+          recent: { cols: ['Timestamp', 'Upload date'], days: Number(days) },
+          need: ['Task Type', 'Shop Name'],
+          order: 'desc',
+          limit: 5000,
+        }),
+      );
+      setJobs(value.objects);
+      setLoadedAt(Date.now());
+      setWorkingUrl(url);
+    } catch (e) {
+      setErr((e as Error).message);
     }
-    setErr(last);
     setLoading(false);
   }, [candidates, days]);
 
@@ -252,30 +253,36 @@ export function AssignForm() {
     setErr(null);
     setResults(null);
     try {
-      const all50: Result[] = [];
-      for (let i = 0; i < selectedJobs.length; i += 50) {
-        const chunk = selectedJobs.slice(i, i + 50);
-        const res = await fetch(candidates[0], {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            action: 'assignTasks',
-            by: lead.trim(),
-            jobs: chunk.map((j) => ({
-              jobId: t(j['JOB ID']),
-              expect: { 'Uploaded by': j['Uploaded by'], 'Visual editor': j['Visual editor'], 'QC By': j['QC By'], Status: j.Status },
-            })),
-            assign: { [field]: assignee },
-            setRunning: role === 'upload' && setRunning,
-            overwrite,
-          }),
-        });
-        if (!res.ok) throw new Error(`The Google Sheets service returned HTTP ${res.status}.`);
-        const j = await readAppsScriptJson<{ ok: boolean; error?: string; results?: Result[] }>(res);
-        if (!j.ok) throw new Error(j.error || 'Assigning failed.');
-        if (!Array.isArray(j.results)) throw new Error('The Apps Script Web app is an older version — deploy the latest script (New version).');
-        all50.push(...j.results);
+      // Decide per job here: keep someone already assigned unless "replace existing" is ticked.
+      const out: Result[] = [];
+      const ops: WriteOp[] = [];
+      for (const j of selectedJobs) {
+        const id = t(j['JOB ID']);
+        const cur = t(j[field]);
+        if (cur.toLowerCase() === assignee.toLowerCase()) {
+          out.push({ jobId: id, ok: true, written: [], skipped: [] });
+          continue;
+        }
+        if (cur && !overwrite) {
+          out.push({ jobId: id, ok: true, written: [], skipped: [`${field}: already ${cur}`] });
+          continue;
+        }
+        const set: Record<string, string> = { [field]: assignee };
+        if (role === 'upload' && setRunning && (t(j.Status) === '' || t(j.Status) === 'Pending')) set.Status = 'Running';
+        // expect = what this board showed; the script refuses the row if it changed since.
+        ops.push({ sheet: 'work', op: 'update', key: id, set, expect: { [field]: j[field] ?? null, Status: j.Status ?? null } });
       }
+      const res = ops.length ? await scriptWrite(candidates[0], lead.trim(), ops) : [];
+      for (const r of res) {
+        out.push({
+          jobId: r.key,
+          ok: r.ok,
+          reason: r.stale ? `${r.reason} — refresh and try again` : r.reason,
+          written: r.written,
+          skipped: (r.skipped ?? []).map((x) => `${x.field}: ${x.reason}`),
+        });
+      }
+      const all50 = out;
       setResults(all50);
       setSelected(new Set());
       await load();

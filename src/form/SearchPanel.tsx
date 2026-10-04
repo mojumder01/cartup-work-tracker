@@ -1,6 +1,8 @@
 /** Read-only JOB search for employees: JOB ID, Seller Code or shop name → who is doing what. */
 import { useState, type FormEvent } from 'react';
-import { readAppsScriptJson } from '../services/appsScriptResponse';
+import { scriptRead, withAnyUrl } from '../services/scriptApi';
+
+const COLUMNS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'KAM', 'Number of SKU', 'Status', 'Uploaded by', 'Uploaded SKU Count', 'Upload date', 'QC By', 'QC Status', 'Visual editor', 'Image Status', 'Image count', 'Comments'];
 
 type Cell = string | number | null;
 type Row = Record<string, Cell>;
@@ -30,22 +32,19 @@ export function SearchPanel({ urls, onUpdate }: { urls: string[]; onUpdate: (job
     if (query.length < 2) return setErr('Type at least 2 characters.');
     if (!urls.length) return setErr('The form is not connected to Google Sheets yet.');
     setBusy(true);
-    let last = '';
-    for (const u of urls) {
-      try {
-        const r = await fetch(`${u}?action=search&q=${encodeURIComponent(query)}&t=${Date.now()}`);
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const j = await readAppsScriptJson<{ ok: boolean; error?: string; results?: Row[]; total?: number }>(r);
-        if (!j.ok) throw new Error(j.error || 'Search failed.');
-        if (!Array.isArray(j.results)) throw new Error('The Apps Script Web app is an older version without search — deploy the latest script (New version).');
-        setRes({ total: j.total ?? j.results.length, results: j.results });
-        setBusy(false);
-        return;
-      } catch (e2) {
-        last = (e2 as Error).message;
-      }
+    try {
+      const looksLikeId = /^[A-Za-z]{2,}\d+$/.test(query);
+      const { value } = await withAnyUrl(urls, async (u) => {
+        if (looksLikeId) {
+          const exact = await scriptRead(u, { sheet: 'work', key: query.toUpperCase(), cols: COLUMNS });
+          if (exact.objects.length) return exact;
+        }
+        return scriptRead(u, { sheet: 'work', q: query, in: ['JOB ID', 'Seller Code', 'Shop Name'], cols: COLUMNS, order: 'desc', limit: 20 });
+      });
+      setRes({ total: value.total, results: value.objects as Row[] });
+    } catch (e2) {
+      setErr((e2 as Error).message);
     }
-    setErr(last);
     setBusy(false);
   };
 
