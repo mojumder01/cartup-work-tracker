@@ -240,6 +240,10 @@ The QC report (`Total QC` / `No. of Sellers`) adds up Approved + Rejected QC Cou
 
 No. of Sellers is the number of those rows. Reading the Admin Portal sheet needs Apps Script 2.1.7 or later; without it the report shows a warning.
 
+**Download Excel (calculation)** saves every row behind the numbers for the chosen day:
+- a **Summary** tab with the rule, row count and total per sheet;
+- one tab each for QC – Work Sheet, QC – Admin Portal, QC – Seller Upload QC, QC Pending, Uploaded, Images and Upload Pending, with totals at the bottom.
+
 The production report looks like this:
 
 ```
