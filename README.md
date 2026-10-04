@@ -176,7 +176,7 @@ The script still enforces these rules:
 - A line per stage: done, "not done yet — assigned to X", or "not done yet — not assigned".
 
 **Job desk → Update my task.**
-1. Check a JOB ID, then update Status, Uploaded SKU Count, Upload date, Upload Month and Comments. Only fields the person actually changes are written.
+1. Check a JOB ID, then update Status, Uploaded SKU Count, Rejected SKU Count (column AC), Upload date, Upload Month and Comments. Only fields the person actually changes are written.
 2. A column calculated by a formula is left alone, and "Uploaded by" is filled only when it is empty.
 
 **Task board (assign.html).** For team leads. It loads every unfinished job plus the last 7/30/90 days live from the Work Sheet.
