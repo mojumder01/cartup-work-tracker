@@ -23,7 +23,7 @@
  *   GITHUB_TOKEN = fine-grained token (only this repo, "Actions: Read and write"), GITHUB_REPO = owner/repo.
  */
 
-var SCRIPT_VERSION = '2.1.2';
+var SCRIPT_VERSION = '2.1.3';
 
 var WORK_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
 var GOVERNANCE_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
@@ -127,17 +127,21 @@ function writable_(name, cfg) {
 
 // ---- sheets -------------------------------------------------------------------
 
+function noAccess_(cfg) {
+  return new Error('The Apps Script runs as ' + account_() + ', and that account cannot open the sheet with the "' + cfg.tab +
+    '" tab. Open that Google Sheet → Share → add ' + account_() + ' as Editor (by email, not only "anyone with the link").');
+}
 function tab_(cfg, create) {
   var ss;
+  var sh;
+  var want = cfg.tab.toLowerCase().replace(/\s+/g, ' ').trim();
   try {
     ss = SpreadsheetApp.openById(cfg.id);
+    sh = ss.getSheetByName(cfg.tab) ||
+      ss.getSheets().filter(function (x) { return x.getName().toLowerCase().replace(/\s+/g, ' ').trim() === want; })[0] || null;
   } catch (e) {
-    throw new Error('The Apps Script runs as ' + account_() + ', and that account cannot open the sheet with the "' + cfg.tab +
-      '" tab. Share that Google Sheet with ' + account_() + ' as Editor.');
+    throw noAccess_(cfg);
   }
-  var want = cfg.tab.toLowerCase().replace(/\s+/g, ' ').trim();
-  var sh = ss.getSheetByName(cfg.tab) ||
-    ss.getSheets().filter(function (x) { return x.getName().toLowerCase().replace(/\s+/g, ' ').trim() === want; })[0] || null;
   if (!sh && create) sh = ss.insertSheet(cfg.tab);
   if (!sh) throw new Error('Tab "' + cfg.tab + '" not found.');
   return sh;
@@ -308,7 +312,10 @@ function mirror_(W, row, cache) {
     });
     return { ok: true, row: target, written: written, skipped: skipped };
   } catch (err) {
-    return { ok: false, written: [], skipped: [], reason: String(err && err.message ? err.message : err) };
+    var msg = String(err && err.message ? err.message : err);
+    // Google's own text is in the account's language (e.g. "…অনুমতি নেই"); say it plainly instead.
+    if (/permission|access|denied|অনুমতি|অ্যাক্সেস/i.test(msg) && msg.indexOf('Share') < 0) msg = noAccess_(SHEETS.commercial).message;
+    return { ok: false, written: [], skipped: [], reason: msg };
   }
 }
 
