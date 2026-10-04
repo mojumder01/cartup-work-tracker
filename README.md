@@ -148,7 +148,7 @@ Work that is assigned but still **Running / Pending** (or Rejected) is **not** c
 | Page | Who | URL |
 |---|---|---|
 | **Job desk** | all employees | `https://<user>.github.io/<repo>/form.html` (`?job=CCWT10000` opens a job) |
-| **Assign tasks** | team leads only — share this link only with them | `https://<user>.github.io/<repo>/assign.html` |
+| **Task board** | team leads only — share this link only with them | `https://<user>.github.io/<repo>/assign.html` |
 
 **Job desk → Search.** Search by JOB ID, Seller Code or shop name to see:
 - Shop, Seller Code, KAM and Number of SKU.
@@ -160,12 +160,13 @@ Work that is assigned but still **Running / Pending** (or Rejected) is **not** c
 1. Check a JOB ID, then update Status, Uploaded SKU Count, Upload date, Upload Month and Comments. Only fields the person actually changes are written.
 2. A column calculated by a formula is left alone, and "Uploaded by" is filled only when it is empty.
 
-**Assign tasks.**
-1. Paste one or many JOB IDs and click **Check**. A table shows each job (shop, task, SKUs, status, current Uploaded by / Visual editor / QC By) and flags IDs that are not in the Work Sheet.
-2. Pick people for Upload / Image editing / QC. Names are sorted by **fewest open jobs** first.
-3. The "Will change" column shows exactly what will happen.
-   - People already assigned are **kept** unless *Replace people who are already assigned* is ticked.
-   - Optionally, Pending/blank jobs are set to Running.
+**Task board (assign.html).** For team leads. It loads every unfinished job plus the last 7/30/90 days live from the Work Sheet.
+- **Work type tabs:** Upload, Image or QC.
+- **One-click filter cards:** Not assigned, Open, Pending, Running, Done, Rejected, All.
+- **More filters:** search (or paste many JOB IDs), task type, KAM, person, period, and sort (oldest request first by default).
+- **Job table:** JOB ID, age in days (red after 3 days), task, shop and seller code, KAM, SKUs, status, Uploaded by, Visual editor (with Image Status), QC By (with QC Status).
+- **In hand panel:** Pending / Running / Open / Done per person. Click a name to filter.
+- **Assigning:** tick jobs (or the header box to select everything shown), choose a person in the bottom bar (names show how many jobs they have in hand, least busy first), and click **Assign**. For uploads it can also set Status to Running. People already assigned are kept unless *replace existing* is ticked.
 
 **Never overwritten by old data.** Every save sends the values the person saw when they clicked Check. If the row changed in the meantime (someone else updated it), nothing is written and they are asked to check again. Every change is recorded in the **Form Log** tab (time, JOB ID, who, field, old → new).
 

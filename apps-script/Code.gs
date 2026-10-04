@@ -35,7 +35,7 @@
  */
 
 /** Script version — shown by ?action=ping so the dashboard can tell an old deployment. */
-var SCRIPT_VERSION = '1.7.0';
+var SCRIPT_VERSION = '1.8.0';
 var SPREADSHEET_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
 /** Main "Cartup Content Work Tracker" sheet — the task update form writes to its Work Sheet tab. */
 var WORK_SPREADSHEET_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
@@ -190,6 +190,7 @@ function doGet(e) {
     if (action === 'job') return json_(lookupJob_(e.parameter.id));
     if (action === 'search') return json_(searchJobs_(e.parameter.q));
     if (action === 'workload') return json_(workload_());
+    if (action === 'queue') return json_(queue_(e.parameter.days));
     if (action !== 'list') throw new Error('Unknown action "' + action + '" — this Web app may be an older version of the script.');
     return json_({ ok: true, projects: readTab_(PROJECTS_TAB, PROJECT_HEADERS), progress: readTab_(PROGRESS_TAB, PROGRESS_HEADERS) });
   } catch (err) {
@@ -532,6 +533,39 @@ function searchJobs_(qRaw) {
   });
   var list = Object.keys(rows).map(Number).sort(function (a, b) { return b - a; });
   return { ok: true, total: list.length, results: list.slice(0, 20).map(function (r) { return jobView_(w, r, tz); }) };
+}
+
+/** Columns sent to the team-lead board (assign.html). */
+var QUEUE_COLUMNS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'KAM', 'L1 Category', 'Number of SKU', 'Status',
+  'Uploaded by', 'Uploaded SKU Count', 'Upload date', 'Visual editor', 'Image Status', 'QC By', 'QC Status'];
+
+/**
+ * GET ?action=queue&days=30 → every unfinished job (Status not Done / Rejected) plus jobs requested
+ * or finished in the last `days` days, newest first (max 3000), as { columns, rows }.
+ */
+function queue_(daysRaw) {
+  var days = Math.min(Math.max(Number(daysRaw) || 30, 1), 365);
+  var w = workSheet_();
+  var tz = Session.getScriptTimeZone();
+  var last = w.sh.getLastRow();
+  var out = { ok: true, columns: QUEUE_COLUMNS, rows: [], days: days, generatedAt: Utilities.formatDate(new Date(), tz, "yyyy-MM-dd'T'HH:mm:ss") };
+  if (last <= w.headerRow) return out;
+  var data = w.sh.getRange(w.headerRow + 1, 1, last - w.headerRow, w.sh.getLastColumn()).getValues();
+  var idx = QUEUE_COLUMNS.map(function (h) { return w.col(h) - 1; });
+  var c = function (h) { return w.col(h) - 1; };
+  var since = new Date().getTime() - days * 86400000;
+  var recent = function (v) { return Object.prototype.toString.call(v) === '[object Date]' && v.getTime() >= since; };
+  for (var i = data.length - 1; i >= 0 && out.rows.length < 3000; i--) {
+    var r = data[i];
+    if (!norm_(r[c('JOB ID')])) continue;
+    var hasWork = norm_(r[c('Task Type')]) || norm_(r[c('Shop Name')]) || r[c('Timestamp')] !== '';
+    if (!hasWork) continue;
+    var st = norm_(r[c('Status')]);
+    var open = st !== 'Done' && st !== 'Rejected';
+    if (!open && !recent(r[c('Timestamp')]) && !(c('Upload date') >= 0 && recent(r[c('Upload date')]))) continue;
+    out.rows.push(idx.map(function (k) { return k >= 0 ? cellOut_(r[k], tz) : null; }));
+  }
+  return out;
 }
 
 /** Open (unfinished) jobs per person, for the assign page. Cached for 2 minutes. */
