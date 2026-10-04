@@ -232,7 +232,7 @@ export function TaskForm() {
             /* keep the generic text */
           }
           const tail = url.match(/\/s\/([\w-]+)\/exec/)?.[1]?.slice(-8) ?? '';
-          mirrorText = ` Content/Commercial sheet NOT updated — the Apps Script Web app …${tail} runs ${ver}; 2.1.2 is needed. In Apps Script: paste the new Code.gs → Save → Deploy → Manage deployments → ✏️ → Version: New version → Deploy.`;
+          mirrorText = ` Content/Commercial sheet NOT updated — the Apps Script Web app …${tail} runs ${ver}; 2.1.4 is needed. In Apps Script: paste the new Code.gs → Save → Deploy → Manage deployments → ✏️ → Version: New version → Deploy.`;
         } else if (!m.ok) {
           mirrorWarn = true;
           mirrorText = ` Content/Commercial sheet NOT updated: ${m.reason}.`;
@@ -381,7 +381,18 @@ export function TaskForm() {
               </label>
               <label className="field">
                 <span>Uploaded SKU Count</span>
-                <input className="input" inputMode="numeric" value={f.sku} onChange={(e) => setF({ ...f, sku: e.target.value })} placeholder="0" disabled={locked.has('Uploaded SKU Count')} />
+                <input
+                  className="input"
+                  inputMode="numeric"
+                  value={f.sku}
+                  onChange={(e) => {
+                    // Uploaded SKUs entered and no Upload date yet → today's date from this device (and its month).
+                    const fill = e.target.value.trim() && !f.date && !locked.has('Upload date');
+                    setF({ ...f, sku: e.target.value, ...(fill ? { date: todayIso(), month: f.monthTouched ? f.month : monthOf(todayIso()) } : {}) });
+                  }}
+                  placeholder="0"
+                  disabled={locked.has('Uploaded SKU Count')}
+                />
               </label>
               <label className="field">
                 <span>Rejected SKU Count</span>
@@ -398,11 +409,18 @@ export function TaskForm() {
                   onChange={(e) => setF({ ...f, date: e.target.value, month: f.monthTouched ? f.month : monthOf(e.target.value) })}
                   disabled={locked.has('Upload date')}
                 />
+                {!job?.['Upload date'] && f.date === todayIso() && <div className="tf-hint">Today on this device — change it if the upload was on another day.</div>}
               </label>
               <label className="field">
                 <span>Upload Month</span>
-                <input type="month" className="input" value={f.month} onChange={(e) => setF({ ...f, month: e.target.value, monthTouched: true })} disabled={locked.has('Upload Month')} />
-                {locked.has('Upload Month') && <div className="tf-hint">Calculated by the sheet from Upload date — no need to fill.</div>}
+                <input
+                  type="month"
+                  className="input"
+                  value={locked.has('Upload Month') ? monthOf(f.date) || f.month : f.month}
+                  onChange={(e) => setF({ ...f, month: e.target.value, monthTouched: true })}
+                  disabled={locked.has('Upload Month')}
+                />
+                {locked.has('Upload Month') && <div className="tf-hint">Set by the sheet from the Upload date.</div>}
               </label>
             </div>
             <label className="field">

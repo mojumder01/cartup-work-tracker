@@ -23,7 +23,7 @@
  *   GITHUB_TOKEN = fine-grained token (only this repo, "Actions: Read and write"), GITHUB_REPO = owner/repo.
  */
 
-var SCRIPT_VERSION = '2.1.3';
+var SCRIPT_VERSION = '2.1.4';
 
 var WORK_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
 var GOVERNANCE_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
@@ -38,7 +38,7 @@ var COMMERCIAL_MAP = {
   'Number of SKU': 'Number of SKU',
   'Uploaded SKU Count': 'Uploaded SKU Count',
   'Status': 'Upload Status',
-  'Comments': 'Catalogue Comment',
+  'Comments': 'Catalogue Comment', // written as "<Rejected SKU Count> rejected. <Comments>"
   'Rejected QC Count': 'Rejected QC Count',
   'Approved QC Count': 'Approved QC Count',
   'Upload date': 'Upload Date',
@@ -283,6 +283,13 @@ function mirror_(W, row, cache) {
     var srcOf = function (name) { var c = W.col(name); return c ? src[c - 1] : null; };
     var values = {};
     Object.keys(map).forEach(function (f) { var v = srcOf(f); if (v !== null && norm_(v) !== '') values[f] = v; });
+    // Catalogue Comment = Rejected SKU Count + Comments, like "89 rejected. (name & image missing)".
+    if (map['Comments']) {
+      var rej = Number(srcOf('Rejected SKU Count')) || 0;
+      var note = norm_(srcOf('Comments')).replace(/\s*\n\s*/g, '; ');
+      var merged = [rej > 0 ? rej + ' rejected.' : '', note].filter(String).join(' ');
+      if (merged) values['Comments'] = merged;
+    }
     var fields = Object.keys(values);
     if (!fields.length) return { ok: true, written: [], skipped: [], reason: 'nothing to copy' };
     var last = C.sh.getLastRow();

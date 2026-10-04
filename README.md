@@ -200,7 +200,7 @@ Under the Save button, the Job desk has a checkbox **"Also update Cartup Work Tr
   |---|---|
   | Number of SKU, Uploaded SKU Count | Number of SKU, Uploaded SKU Count |
   | Status | Upload Status |
-  | Comments | Catalogue Comment |
+  | Rejected SKU Count + Comments | Catalogue Comment, written as `15 rejected. <comments>` |
   | Approved QC Count / Rejected QC Count | Approved QC Count / Rejected QC Count |
   | Upload date | Upload Date |
   | QC approved date | QC Date |
@@ -209,7 +209,7 @@ Under the Save button, the Job desk has a checkbox **"Also update Cartup Work Tr
   Empty Work Sheet cells never clear the other sheet, and formula columns are skipped. Each copy is recorded in the Form Log.
 - **Off:** only the Work Sheet is updated.
 
-**Needs Apps Script 2.1.2 or later.** The account the script runs as must have **Editor** access to that spreadsheet; Settings → Connections shows whether it can write. Two Script Properties change the behaviour without redeploying: `COMMERCIAL_MAP` (JSON) changes the column mapping, and `COMMERCIAL_JOB_COL` changes the JOB ID column letter.
+**Needs Apps Script 2.1.4 or later.** The account the script runs as must have **Editor** access to that spreadsheet; Settings → Connections shows whether it can write. Two Script Properties change the behaviour without redeploying: `COMMERCIAL_MAP` (JSON) changes the column mapping, and `COMMERCIAL_JOB_COL` changes the JOB ID column letter.
 
 ## Individual Summary report
 
