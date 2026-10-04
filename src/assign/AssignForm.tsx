@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { scriptRead, scriptWrite, withAnyUrl, type WriteOp } from '../services/scriptApi';
 
 const QUEUE_COLUMNS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'KAM', 'L1 Category', 'Number of SKU', 'Status', 'Uploaded by', 'Uploaded SKU Count', 'Upload date', 'Visual editor', 'Image Status', 'QC By', 'QC Status'];
-import { LOCAL_URL_KEY, localAppsScriptUrl } from '../services/appsScriptUrl';
+import { isAppsScriptUrl, LOCAL_URL_KEY, localAppsScriptUrl } from '../services/appsScriptUrl';
 
 type Cell = string | number | null;
 type Job = Record<string, Cell>;
@@ -86,6 +86,16 @@ export function AssignForm() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [workingUrl, setWorkingUrl] = useState<string | null>(null);
+  const [editUrl, setEditUrl] = useState<string | null>(null);
+  const saveUrl = (v: string | null) => {
+    try {
+      if (v) localStorage.setItem(LOCAL_URL_KEY, JSON.stringify(v.trim()));
+      else localStorage.removeItem(LOCAL_URL_KEY);
+    } catch {
+      /* ignore */
+    }
+    location.reload();
+  };
 
   const [status, setStatus] = useState<StatusFilter>('unassigned');
   const [q, setQ] = useState('');
@@ -547,24 +557,22 @@ export function AssignForm() {
 
         <div className="tf-hint" style={{ textAlign: 'center' }}>
           {candidates[0] ? `Connected to Web app …${candidates[0].slice(-26, -5)}` : ''}
-          {localAppsScriptUrl() && (
-            <>
-              {' · '}
-              <button
-                type="button"
-                className="rb-link"
-                onClick={() => {
-                  try {
-                    localStorage.removeItem(LOCAL_URL_KEY);
-                  } catch {
-                    /* ignore */
-                  }
-                  location.reload();
-                }}
-              >
-                Use the default connection
+          {' · '}
+          <button type="button" className="rb-link" onClick={() => setEditUrl(editUrl === null ? localAppsScriptUrl() ?? '' : null)}>
+            {editUrl === null ? 'Change connection' : 'Close'}
+          </button>
+          {editUrl !== null && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 8, maxWidth: 760, marginInline: 'auto' }}>
+              <input className="input" value={editUrl} onChange={(e) => setEditUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" />
+              <button type="button" className="btn btn-sm" disabled={!isAppsScriptUrl(editUrl)} onClick={() => saveUrl(editUrl)}>
+                Use
               </button>
-            </>
+              {localAppsScriptUrl() && (
+                <button type="button" className="btn btn-sm" onClick={() => saveUrl(null)} title="Forget the URL saved in this browser and use the default">
+                  Remove saved
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
