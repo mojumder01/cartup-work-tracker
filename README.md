@@ -211,9 +211,28 @@ The script still enforces these rules:
 - **Both sheets:** both changes are also copied to Content/Commercial when "Also update" is ticked.
 - **Needs Apps Script 2.1.6 or later**, which allows Number of SKU to be written.
 
+### My tasks (Job desk)
+
+On the Job desk's **Search** tab, an employee picks their name and sees:
+- **Upload pending** and **Upload running:** their jobs by Status;
+- **Images in hand:** not yet delivered;
+- **QC in hand:** not yet QC'd.
+
+Click a job to open it in **Update my task**.
+
+### Task board filters
+
+- **Day / Month:** finished work counts on the day it was finished (Upload date / Image Delivered Date / QC approved date); open work counts on the day it was requested. The board loads far enough back to cover the chosen day or month.
+- **QC tab cards:** **QC Pending (uploaded)** and **QC Done** replace Pending, Running, Done and Rejected.
+- **What each tab loads:** its own unfinished work, so QC sees every uploaded job waiting for QC.
+
 ### Daily report message (Task board)
 
-Open **Daily report message** on the Task board and pick a day. It writes the team-chat message, ready to copy and edit before copying:
+Open **Daily report message** on the Task board and pick a day. There are two messages: **Production report** and **QC report**. You can edit either one before copying it.
+
+The QC report counts **QC Done**: SKUs (Approved + Rejected QC Count) of jobs QC'd that day. **QC Pending** is jobs uploaded by the end of that day and not QC'd by then.
+
+The production report looks like this:
 
 ```
 24/09/2026

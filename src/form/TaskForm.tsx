@@ -6,6 +6,7 @@
  */
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { SearchPanel } from './SearchPanel';
+import { MyTasks } from './MyTasks';
 import { makeIsLeft } from '../services/leftPeople';
 import { BuiltBy } from '../components/BuiltBy';
 import { asDate, asMonth, scriptRead, scriptWrite, withAnyUrl, type WriteValue } from '../services/scriptApi';
@@ -308,14 +309,27 @@ export function TaskForm() {
         </div>
 
         {tab === 'search' && (
-          <SearchPanel
-            urls={workingUrl ? [workingUrl, ...candidates.filter((u) => u !== workingUrl)] : candidates}
-            onUpdate={(id) => {
-              setTab('update');
-              setJobInput(id);
-              check(id);
-            }}
-          />
+          <>
+            <MyTasks
+              urls={workingUrl ? [workingUrl, ...candidates.filter((u) => u !== workingUrl)] : candidates}
+              people={(cfg?.people ?? []).filter((p) => !isLeft(p))}
+              who={who}
+              onPick={(n) => !who.trim() && setWho(n)}
+              onOpen={(id) => {
+                setTab('update');
+                setJobInput(id);
+                check(id);
+              }}
+            />
+            <SearchPanel
+              urls={workingUrl ? [workingUrl, ...candidates.filter((u) => u !== workingUrl)] : candidates}
+              onUpdate={(id) => {
+                setTab('update');
+                setJobInput(id);
+                check(id);
+              }}
+            />
+          </>
         )}
 
         {tab === 'update' && (
