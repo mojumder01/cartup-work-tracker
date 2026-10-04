@@ -116,7 +116,7 @@ async function main() {
     /** Extra sheets: retail (Retail Picks upload requests), pendingQc (Admin Portal pending QC). */
     extra,
     /** Apps Script web app (project writes + "Update data" button). */
-    appsScriptUrl: process.env.GOVERNANCE_APPS_SCRIPT_URL || config.governance?.appsScriptUrl || null,
+    appsScriptUrl: config.governance?.appsScriptUrl || process.env.GOVERNANCE_APPS_SCRIPT_URL || null,
     warnings,
   };
 

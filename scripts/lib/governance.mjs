@@ -53,7 +53,7 @@ export async function fetchGovernance(token, config, dateColumns, warnings) {
       adhoc: table(adhocTab, `Governance ${gov.tabs.adhoc}`),
       projects: table(projectsTab, 'Projects'),
       progress: table(progressTab, 'Project Progress'),
-      writeUrl: process.env.GOVERNANCE_APPS_SCRIPT_URL || gov.appsScriptUrl || null,
+      writeUrl: gov.appsScriptUrl || process.env.GOVERNANCE_APPS_SCRIPT_URL || null,
     };
     logStructure(info.title, info.tabs, { adhoc: out.adhoc, projects: out.projects, progress: out.progress });
     return out;

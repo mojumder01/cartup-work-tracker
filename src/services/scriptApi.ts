@@ -74,7 +74,7 @@ async function call(url: string, init?: RequestInit): Promise<Response> {
   } catch {
     const id = url.match(/\/s\/([\w-]+)\/exec/)?.[1] ?? '';
     throw new Error(
-      `Could not reach the Apps Script Web app …${id.slice(-21)}. If that deployment was archived or replaced, paste the current Web app URL (Manage deployments → Web app → URL) in the dashboard under Settings → Connections (“Use here”), and update the GitHub variable GOVERNANCE_APPS_SCRIPT_URL so everyone gets it.`,
+      `Could not reach the Apps Script Web app …${id.slice(-21)}. If that deployment was archived or replaced, paste the current Web app URL (Manage deployments → Web app → URL) in the dashboard under Settings → Connections (“Use here”), and update "appsScriptUrl" in config/data-source.json on GitHub so everyone gets it.`,
     );
   }
 }

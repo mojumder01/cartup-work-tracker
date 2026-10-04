@@ -15,11 +15,11 @@
   "dateColumns": ["Timestamp", "QC approved date", "Upload date", "Image Delivered Date"],
   "sellerQcColumns": ["QC By", "QC Status", "Number of SKUs", "Approved QC Count", "Rejected QC Count", "QC Date"],
   "teamColumns": ["Name", "Full Name", "Team", "Status", "Left Date"],
-  "$comment_governance": "Governance team tracker (separate spreadsheet). adhoc = regular REVAMP / Ad-Hoc task log. projects & progress tabs are created and written by the Apps Script in apps-script/Code.gs. appsScriptUrl = the Web app URL from that script's deployment (not a secret, but it allows writes).",
+  "$comment_governance": "Governance team tracker (separate spreadsheet). adhoc = regular REVAMP / Ad-Hoc task log. projects & progress tabs are created and written by the Apps Script in apps-script/Code.gs. appsScriptUrl = the Web app URL from that script's deployment (not a secret, but it allows writes). It is used for everyone and wins over the GitHub variable GOVERNANCE_APPS_SCRIPT_URL.",
   "governance": {
     "spreadsheetId": "1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4",
     "tabs": { "adhoc": "Main", "projects": "Projects", "progress": "Project Progress" },
-    "appsScriptUrl": ""
+    "appsScriptUrl": "https://script.google.com/macros/s/AKfycbxkmUfIX4VFdFh0LUX1T_85qQKTbtfaMPFWcQVPsIiTe5CLK_OYsEl8ivntBGseR0CHsw/exec"
   },
   "$comment_performance": "Catalogue Overall Performance spreadsheet (Daily / Monthly performance report). Set the ID here or as the GitHub variable PERFORMANCE_SHEET_ID, and share the sheet with the service account (Viewer). Tab names match by prefix.",
   "performance": {

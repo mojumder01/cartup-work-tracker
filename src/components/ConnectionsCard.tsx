@@ -277,7 +277,7 @@ export function ConnectionsCard() {
               {draftUrl && !isAppsScriptUrl(draftUrl) && <span style={{ color: 'var(--bad)', fontSize: 12 }}>It should look like https://script.google.com/macros/s/…/exec</span>}
               {url && (
                 <span className="muted" style={{ fontSize: 12 }}>
-                  In use: <code>{url.replace(/(\/s\/.{6}).+(.{6}\/exec)$/, '$1…$2')}</code> — {localUrl ? 'saved in this browser' : 'from the GitHub variable GOVERNANCE_APPS_SCRIPT_URL'}
+                  In use: <code>{url.replace(/(\/s\/.{6}).+(.{6}\/exec)$/, '$1…$2')}</code> — {localUrl ? 'saved in this browser' : 'published for everyone (config/data-source.json → appsScriptUrl)'}
                   {localUrl && sharedUrl && localUrl !== sharedUrl ? ' (differs from the GitHub variable — update the variable when this one works)' : ''}
                 </span>
               )}
