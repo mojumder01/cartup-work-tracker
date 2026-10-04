@@ -10,6 +10,7 @@ import { useVisibleColumns } from '../components/WorkTable';
 import { Card, EmptyState, KpiCard, Segmented } from '../components/ui';
 import { ReportBuilder } from '../components/report/ReportBuilder';
 import { GovernanceReport } from '../components/report/GovernanceReport';
+import { MonthlyReport } from '../components/report/MonthlyReport';
 import { CatalogueReport } from '../components/report/CatalogueReport';
 import { FilterBar } from '../components/FilterBar';
 import { Icon } from '../components/Icon';
@@ -254,7 +255,7 @@ function DataExports() {
   );
 }
 
-type ReportTab = 'individual' | 'catalogue' | 'governance' | 'exports';
+type ReportTab = 'individual' | 'monthly' | 'catalogue' | 'governance' | 'exports';
 
 export default function ReportsPage() {
   const [tab, setTab] = useState<ReportTab>(() => {
@@ -281,6 +282,7 @@ export default function ReportsPage() {
           onChange={choose}
           options={[
             { id: 'individual', label: 'Individual Summary' },
+            { id: 'monthly', label: 'Monthly Report' },
             { id: 'catalogue', label: 'Daily / Monthly Performance' },
             { id: 'governance', label: 'Product Governance' },
             { id: 'exports', label: 'Data exports' },
@@ -288,6 +290,7 @@ export default function ReportsPage() {
         />
       </div>
       {tab === 'individual' && <ReportBuilder />}
+      {tab === 'monthly' && <MonthlyReport />}
       {tab === 'catalogue' && <CatalogueReport />}
       {tab === 'governance' && <GovernanceReport />}
       {tab === 'exports' && <DataExports />}
