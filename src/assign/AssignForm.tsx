@@ -11,13 +11,13 @@ import { DailyReport } from './DailyReport';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { scriptRead, scriptWrite, withAnyUrl, type WriteOp } from '../services/scriptApi';
 
-const QUEUE_COLUMNS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'KAM', 'L1 Category', 'Number of SKU', 'Status', 'Uploaded by', 'Uploaded SKU Count', 'Upload date', 'Visual editor', 'Image Status', 'QC By', 'QC Status'];
+const QUEUE_COLUMNS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'KAM', 'L1 Category', 'Number of SKU', 'Status', 'Uploaded by', 'Uploaded SKU Count', 'Upload date', 'Visual editor', 'Image Status', 'Image Delivered Date', 'QC By', 'QC Status', 'QC approved date', 'Approved QC Count', 'Rejected QC Count'];
 import { localAppsScriptUrl } from '../services/appsScriptUrl';
 
 type Cell = string | number | null;
 type Job = Record<string, Cell>;
 type RoleKey = 'upload' | 'visual' | 'qc';
-type StatusFilter = 'open' | 'unassigned' | 'Pending' | 'Running' | 'Done' | 'Rejected' | 'all';
+type StatusFilter = 'open' | 'unassigned' | 'Pending' | 'Running' | 'Done' | 'Rejected' | 'qcPending' | 'qcDone' | 'all';
 
 const ROLES: Record<RoleKey, { field: string; label: string; short: string }> = {
   upload: { field: 'Uploaded by', label: 'Upload (Uploaded by)', short: 'Upload' },
@@ -32,6 +32,18 @@ interface Config {
   /** Marked "Left" / "Resigned" (sync); hidden from the name lists. */
   left?: string[];
 }
+/** What each tab loads: its unfinished work + recently finished work (by the role's own date). */
+const ROLE_LOAD: Record<RoleKey, { notIn: { col: string; values: string[] }; date: string; recent: string[] }> = {
+  upload: { notIn: { col: 'Status', values: ['Done', 'Rejected'] }, date: 'Upload date', recent: ['Timestamp', 'Upload date'] },
+  visual: { notIn: { col: 'Image Status', values: ['Delivered', 'Rejected'] }, date: 'Image Delivered Date', recent: ['Timestamp', 'Image Delivered Date'] },
+  qc: { notIn: { col: 'QC Status', values: ['QC Done', 'QC Rejected'] }, date: 'QC approved date', recent: ['Upload date', 'QC approved date'] },
+};
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const isoToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+};
+
 interface Result {
   jobId: string;
   ok: boolean;
@@ -99,6 +111,28 @@ export function AssignForm() {
   const [kam, setKam] = useState('');
   const [person, setPerson] = useState('');
   const [sort, setSort] = useState<'oldest' | 'newest'>('oldest');
+  /** Day / Month filter: finished work by the day it was finished (Upload / Image delivered / QC date), open work by the request day. */
+  const [dateMode, setDateMode] = useState<'' | 'day' | 'month'>('');
+  const [dayF, setDayF] = useState(isoToday);
+  const [monthF, setMonthF] = useState(() => isoToday().slice(0, 7));
+  // Status cards differ per tab (QC has QC Pending / QC Done); keep the chosen card valid.
+  useEffect(() => {
+    const qcOnly = status === 'qcPending' || status === 'qcDone';
+    const uploadOnly = ['Pending', 'Running', 'Done', 'Rejected'].includes(status);
+    if ((role === 'qc' && uploadOnly) || (role !== 'qc' && qcOnly)) setStatus('unassigned');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role]);
+  const range = useMemo((): [number, number] | null => {
+    if (dateMode === 'day' && dayF) {
+      const s0 = new Date(`${dayF}T00:00:00`).getTime();
+      return [s0, s0 + 86400000];
+    }
+    if (dateMode === 'month' && monthF) {
+      const [yy, mm] = monthF.split('-').map(Number);
+      return [new Date(yy, mm - 1, 1).getTime(), new Date(yy, mm, 1).getTime()];
+    }
+    return null;
+  }, [dateMode, dayF, monthF]);
   const [limit, setLimit] = useState(200);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -125,8 +159,9 @@ export function AssignForm() {
         scriptRead(u, {
           sheet: 'work',
           cols: QUEUE_COLUMNS,
-          notIn: { col: 'Status', values: ['Done', 'Rejected'] },
-          recent: { cols: ['Timestamp', 'Upload date'], days: Number(days) },
+          notIn: ROLE_LOAD[role].notIn,
+          // Far enough back to cover a chosen day / month.
+          recent: { cols: ROLE_LOAD[role].recent, days: Math.max(Number(days), range ? Math.ceil((Date.now() - range[0]) / 86400000) + 1 : 0) },
           need: ['Task Type', 'Shop Name'],
           order: 'desc',
           limit: 5000,
@@ -139,20 +174,29 @@ export function AssignForm() {
       setErr((e as Error).message);
     }
     setLoading(false);
-  }, [candidates, days]);
+  }, [candidates, days, role, range]);
 
   useEffect(() => {
     if (cfg) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg, days]);
+  }, [cfg, days, role, range?.[0]]);
 
   const field = ROLES[role].field;
   const all = jobs ?? [];
   const since = Date.now() - Number(days) * 86400000;
   const inRange = (j: Job) => {
     const a = dayMs(j.Timestamp);
-    const b = dayMs(j['Upload date']);
+    const b = dayMs(j[ROLE_LOAD[role].date]);
     return (a !== null && a >= since) || (b !== null && b >= since);
+  };
+  const inPicked = (j: Job) => {
+    if (!range) return true;
+    const hit = (v: Cell | undefined) => {
+      const ms = dayMs(v);
+      return ms !== null && ms >= range[0] && ms < range[1];
+    };
+    // Finished work counts on the day it was finished; open work on the day it was requested.
+    return roleDone(j, role) ? hit(j[ROLE_LOAD[role].date]) : hit(j.Timestamp);
   };
 
   // Counts for the filter cards (ignore the status filter itself).
@@ -163,6 +207,7 @@ export function AssignForm() {
       .filter(Boolean);
     const many = ids.length > 1;
     return all.filter((j) => {
+      if (!inPicked(j)) return false;
       if (taskType && t(j['Task Type']) !== taskType) return false;
       if (kam && t(j.KAM) !== kam) return false;
       if (person === '__none' ? t(j[field]) !== '' : person && t(j[field]).toLowerCase() !== person.toLowerCase()) return false;
@@ -173,7 +218,8 @@ export function AssignForm() {
       }
       return true;
     });
-  }, [all, q, taskType, kam, person, field]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [all, q, taskType, kam, person, field, range, role]);
 
   const matchStatus = (j: Job, s: StatusFilter) => {
     switch (s) {
@@ -185,14 +231,19 @@ export function AssignForm() {
         return true;
       case 'Pending':
         return t(j.Status) === 'Pending' || (t(j.Status) === '' && isOpen(j));
+      case 'qcPending':
+        // Uploaded, waiting for QC.
+        return t(j.Status) === 'Done' && !/^QC (Done|Rejected)$/.test(t(j['QC Status']));
+      case 'qcDone':
+        return /^QC Done$/.test(t(j['QC Status'])) && (range ? true : inRange(j));
       default:
-        return t(j.Status) === s && (s !== 'Done' || inRange(j));
+        return t(j.Status) === s && (s !== 'Done' || range !== null || inRange(j));
     }
   };
   const counts = useMemo(
-    () => Object.fromEntries((['unassigned', 'open', 'Pending', 'Running', 'Done', 'Rejected', 'all'] as StatusFilter[]).map((s) => [s, base.filter((j) => matchStatus(j, s)).length])),
+    () => Object.fromEntries((['unassigned', 'open', 'Pending', 'Running', 'Done', 'Rejected', 'qcPending', 'qcDone', 'all'] as StatusFilter[]).map((s) => [s, base.filter((j) => matchStatus(j, s)).length])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [base, role, days],
+    [base, role, days, range],
   );
 
   const shown = useMemo(() => {
@@ -366,10 +417,19 @@ export function AssignForm() {
         <div className="ab-stats">
           <Card id="unassigned" label={`Not assigned (${ROLES[role].short})`} tone="var(--bad)" />
           <Card id="open" label={`Open (${ROLES[role].short})`} />
-          <Card id="Pending" label="Pending" tone={STATUS_TONE.Pending} />
-          <Card id="Running" label="Running" tone={STATUS_TONE.Running} />
-          <Card id="Done" label={`Done · last ${days} days`} tone={STATUS_TONE.Done} />
-          <Card id="Rejected" label="Rejected" tone={STATUS_TONE.Rejected} />
+          {role === 'qc' ? (
+            <>
+              <Card id="qcPending" label="QC Pending (uploaded)" tone={STATUS_TONE.Pending} />
+              <Card id="qcDone" label={range ? 'QC Done' : `QC Done · last ${days} days`} tone={STATUS_TONE.Done} />
+            </>
+          ) : (
+            <>
+              <Card id="Pending" label="Pending" tone={STATUS_TONE.Pending} />
+              <Card id="Running" label="Running" tone={STATUS_TONE.Running} />
+              <Card id="Done" label={range ? 'Done' : `Done · last ${days} days`} tone={STATUS_TONE.Done} />
+              <Card id="Rejected" label="Rejected" tone={STATUS_TONE.Rejected} />
+            </>
+          )}
           <Card id="all" label="All loaded" />
         </div>
 
@@ -417,12 +477,19 @@ export function AssignForm() {
                   </option>
                 ))}
               </select>
+              <select className="select" value={dateMode} onChange={(e) => setDateMode(e.target.value as '' | 'day' | 'month')} aria-label="Day or month">
+                <option value="">Any date</option>
+                <option value="day">One day</option>
+                <option value="month">One month</option>
+              </select>
+              {dateMode === 'day' && <input type="date" className="input" value={dayF} max={isoToday()} onChange={(e) => e.target.value && setDayF(e.target.value)} aria-label="Day" style={{ width: 160 }} />}
+              {dateMode === 'month' && <input type="month" className="input" value={monthF} max={isoToday().slice(0, 7)} onChange={(e) => e.target.value && setMonthF(e.target.value)} aria-label="Month" style={{ width: 160 }} />}
               <select className="select" value={sort} onChange={(e) => setSort(e.target.value as 'oldest' | 'newest')} aria-label="Sort">
                 <option value="oldest">Oldest request first</option>
                 <option value="newest">Newest first</option>
               </select>
-              {(q || taskType || kam || person) && (
-                <button type="button" className="btn btn-sm" onClick={() => (setQ(''), setTaskType(''), setKam(''), setPerson(''))}>
+              {(q || taskType || kam || person || dateMode) && (
+                <button type="button" className="btn btn-sm" onClick={() => (setQ(''), setTaskType(''), setKam(''), setPerson(''), setDateMode(''))}>
                   Clear
                 </button>
               )}
