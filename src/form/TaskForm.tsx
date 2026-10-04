@@ -222,7 +222,17 @@ export function TaskForm() {
         const m = j.mirror;
         if (!m) {
           mirrorWarn = true;
-          mirrorText = ' Content/Commercial sheet NOT updated — the Apps Script needs the latest version (Settings → Connections).';
+          // Say which script version answered, so it is clear which deployment still runs old code.
+          let ver = 'an older version';
+          try {
+            const pr = await fetch(`${url}?action=ping&t=${Date.now()}`);
+            const pj = (await pr.json()) as { version?: string };
+            ver = pj.version ? `version ${pj.version}` : 'version 1.x';
+          } catch {
+            /* keep the generic text */
+          }
+          const tail = url.match(/\/s\/([\w-]+)\/exec/)?.[1]?.slice(-8) ?? '';
+          mirrorText = ` Content/Commercial sheet NOT updated — the Apps Script Web app …${tail} runs ${ver}; 2.1.2 is needed. In Apps Script: paste the new Code.gs → Save → Deploy → Manage deployments → ✏️ → Version: New version → Deploy.`;
         } else if (!m.ok) {
           mirrorWarn = true;
           mirrorText = ` Content/Commercial sheet NOT updated: ${m.reason}.`;
