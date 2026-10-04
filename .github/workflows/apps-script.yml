@@ -1,0 +1,64 @@
+# Pushes apps-script/ to the Google Apps Script project and updates the EXISTING Web app
+# deployment (same URL) whenever the script changes on main. Optional: it skips itself until
+# the secret CLASPRC_JSON and the variable APPS_SCRIPT_ID are set (see README "Apps Script auto-deploy").
+name: Deploy Apps Script
+
+on:
+  push:
+    branches: [main]
+    paths: ['apps-script/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apps-script
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check settings
+        id: cfg
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ vars.APPS_SCRIPT_ID }}
+          DEPLOYMENT_ID: ${{ vars.APPS_SCRIPT_DEPLOYMENT_ID }}
+          WEB_APP_URL: ${{ vars.GOVERNANCE_APPS_SCRIPT_URL }}
+        run: |
+          # The deployment ID is the AKfy… part of the Web app URL, so it can come from the URL variable.
+          if [ -z "$DEPLOYMENT_ID" ]; then
+            DEPLOYMENT_ID=$(printf '%s' "$WEB_APP_URL" | sed -n 's#.*/s/\([A-Za-z0-9_-]*\)/exec.*#\1#p')
+          fi
+          if [ -z "$CLASPRC_JSON" ] || [ -z "$SCRIPT_ID" ] || [ -z "$DEPLOYMENT_ID" ]; then
+            echo "::notice::Apps Script auto-deploy is not set up yet (needs secret CLASPRC_JSON, variable APPS_SCRIPT_ID, and GOVERNANCE_APPS_SCRIPT_URL or APPS_SCRIPT_DEPLOYMENT_ID). Skipping."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+          echo "deployment=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        if: steps.cfg.outputs.ready == 'true'
+        with:
+          node-version: 20
+
+      - name: Push code and update the Web app (same URL)
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ vars.APPS_SCRIPT_ID }}
+          DEPLOYMENT_ID: ${{ steps.cfg.outputs.deployment }}
+        run: |
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          printf '{"scriptId":"%s","rootDir":"apps-script"}' "$SCRIPT_ID" > .clasp.json
+          VERSION=$(grep -o "SCRIPT_VERSION = '[^']*'" apps-script/Code.gs | cut -d"'" -f2)
+          npx --yes @google/clasp@2.4.2 push --force
+          npx --yes @google/clasp@2.4.2 deploy --deploymentId "$DEPLOYMENT_ID" --description "v$VERSION ${GITHUB_SHA::7}"
+          rm -f "$HOME/.clasprc.json"
+          echo "Apps Script v$VERSION deployed to the existing Web app (same URL)." >> "$GITHUB_STEP_SUMMARY"

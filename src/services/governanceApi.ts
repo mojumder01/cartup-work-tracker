@@ -1,49 +1,74 @@
 /**
- * Client for the Governance Apps Script web app (apps-script/Code.gs).
- *
- * Requests are sent as text/plain so the browser does not need a CORS
- * preflight (Apps Script cannot answer OPTIONS requests). No credentials are
- * involved: the script runs as the sheet owner and validates every field.
+ * Governance project writes/reads through the stable Apps Script service
+ * (apps-script/Code.gs v2, sheets "projects" and "progress"). Validation of
+ * project fields happens in the forms; the script enforces the safety rules.
  */
 import type { CellValue } from '../types';
-import { readAppsScriptJson } from './appsScriptResponse';
+import { asDate, OldScriptError, scriptRead, scriptWrite, type WriteOp, type WriteResult, type WriteValue } from './scriptApi';
 
 type Row = Record<string, CellValue>;
 
 export class GovernanceApiError extends Error {}
 
-async function call<T>(url: string, init?: RequestInit): Promise<T> {
-  let res: Response;
+const wrap = async <T,>(fn: () => Promise<T>): Promise<T> => {
   try {
-    res = await fetch(url, { redirect: 'follow', ...init });
-  } catch {
-    throw new GovernanceApiError('Could not reach the Governance sheet service. Check your connection and try again.');
-  }
-  if (!res.ok) {
-    throw new GovernanceApiError(
-      res.status === 404
-        ? 'The Governance sheet service returned HTTP 404: there is no Web app at this URL (deployment deleted, or not the /exec URL from Deploy → Manage deployments). See Settings → Connections.'
-        : `The Governance sheet service returned HTTP ${res.status}.`,
-    );
-  }
-  let json: { ok?: boolean; error?: string } & T;
-  try {
-    json = await readAppsScriptJson<{ ok?: boolean; error?: string } & T>(res);
+    return await fn();
   } catch (e) {
-    throw new GovernanceApiError((e as Error).message);
+    if (e instanceof OldScriptError) throw new GovernanceApiError(e.message);
+    const msg = (e as Error).message || '';
+    if (/fetch|network/i.test(msg)) throw new GovernanceApiError('Could not reach the Governance sheet service. Check your connection and try again.');
+    throw new GovernanceApiError(msg);
   }
-  if (json.ok === false) throw new GovernanceApiError(json.error || 'The change was rejected by the Governance sheet.');
-  return json;
-}
+};
+
+const check = (results: WriteResult[]) => {
+  const bad = results.find((r) => !r.ok);
+  if (bad) throw new GovernanceApiError(`Not saved (${bad.key}): ${bad.reason}`);
+  return { id: results[0]?.key ?? '' };
+};
+
+/** Dates go to the sheet as real dates; everything else as is. */
+const toValues = (row: Row): Record<string, WriteValue> =>
+  Object.fromEntries(
+    Object.entries(row).map(([k, v]) => [k, typeof v === 'string' && /(^|\s)Date$/.test(k) ? asDate(v) : typeof v === 'boolean' ? (v ? 'Yes' : 'No') : (v as WriteValue)]),
+  );
 
 export function listLive(url: string) {
-  return call<{ projects: Row[]; progress: Row[] }>(`${url}${url.includes('?') ? '&' : '?'}action=list&t=${Date.now()}`);
+  return wrap(async () => {
+    const [projects, progress] = await Promise.all([scriptRead(url, { sheet: 'projects', order: 'asc', limit: 5000 }), scriptRead(url, { sheet: 'progress', order: 'asc', limit: 5000 })]);
+    return { projects: projects.objects as Row[], progress: progress.objects as Row[] };
+  });
 }
 
-const post = (url: string, body: unknown) =>
-  call<{ id: string }>(url, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+export const createProject = (url: string, project: Row, by: string) =>
+  wrap(async () =>
+    check(
+      await scriptWrite(url, by || 'Dashboard', [
+        {
+          sheet: 'projects',
+          op: 'append',
+          // Project ID first so a brand-new tab gets it as column A.
+          set: { 'Project ID': project['Project ID'] as WriteValue, Status: 'Planned', 'Show In Report': 'Yes', ...toValues(project), 'Created At': { now: true }, 'Updated At': { now: true }, 'Updated By': by },
+        },
+      ]),
+    ),
+  );
 
-export const createProject = (url: string, project: Row, by: string) => post(url, { action: 'createProject', project, by });
-export const updateProject = (url: string, id: string, changes: Row, by: string) => post(url, { action: 'updateProject', id, changes, by });
-export const logProgress = (url: string, logs: Row[]) => post(url, { action: 'logProgress', logs });
-export const deleteLog = (url: string, id: string) => post(url, { action: 'deleteLog', id });
+export const updateProject = (url: string, id: string, changes: Row, by: string) =>
+  wrap(async () =>
+    check(await scriptWrite(url, by || 'Dashboard', [{ sheet: 'projects', op: 'update', key: id, set: { ...toValues(changes), 'Updated At': { now: true }, 'Updated By': by } }])),
+  );
+
+export const logProgress = (url: string, logs: Row[], by = '') =>
+  wrap(async () =>
+    check(
+      await scriptWrite(
+        url,
+        by || String(logs[0]?.Person ?? '') || 'Dashboard',
+        logs.map((l): WriteOp => ({ sheet: 'progress', op: 'append', set: { ...toValues(l), Timestamp: { now: true } } })),
+      ),
+    ),
+  );
+
+export const deleteLog = (url: string, id: string, by = '') =>
+  wrap(async () => check(await scriptWrite(url, by || 'Dashboard', [{ sheet: 'progress', op: 'delete', key: id }])));

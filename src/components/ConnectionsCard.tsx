@@ -3,7 +3,6 @@ import codeGs from '../../apps-script/Code.gs?raw';
 import { useApp } from '../hooks/AppContext';
 import { readAppsScriptJson } from '../services/appsScriptResponse';
 import { isAppsScriptUrl, LOCAL_URL_KEY, localAppsScriptUrl } from '../hooks/useGovernance';
-import { PROGRESS_HEADERS, PROJECT_HEADERS } from '../config/governance.config';
 import { BUILD } from '../utils/buildInfo';
 import { fmtNum } from '../utils/format';
 import { Card } from './ui';
@@ -36,12 +35,6 @@ export function ConnectionsCard() {
     }
     window.location.reload();
   };
-  const missingHeaders = (cols: string[] | undefined, want: readonly string[]) => {
-    const have = new Set((cols ?? []).map((c) => c.trim().toLowerCase()));
-    return want.filter((h) => !have.has(h.toLowerCase()));
-  };
-  const projMissing = data.governance?.projects ? missingHeaders(data.governance.projects.columns, PROJECT_HEADERS) : [];
-  const progMissing = data.governance?.progress ? missingHeaders(data.governance.progress.columns, PROGRESS_HEADERS) : [];
   const [ping, setPing] = useState<{ ok: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; account?: string; version?: string; error?: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const repoUrl = BUILD.repo ? `https://github.com/${BUILD.repo}` : null;
@@ -140,23 +133,6 @@ export function ConnectionsCard() {
                   ))}
                 </tbody>
               </table>
-              {i === 1 && (projMissing.length > 0 || progMissing.length > 0) && (
-                <p className="muted" style={{ fontSize: 12.5 }}>
-                  ⚠ Header row incomplete in the last sync —{' '}
-                  {projMissing.length > 0 && (
-                    <>
-                      <b>Projects</b> is missing {projMissing.length} column(s){progMissing.length > 0 ? '; ' : ''}
-                    </>
-                  )}
-                  {progMissing.length > 0 && (
-                    <>
-                      <b>Project Progress</b> is missing {progMissing.length} column(s)
-                    </>
-                  )}
-                  . Run <code>setup</code> once in Apps Script: it writes the missing headers into row 1 and keeps everything else. (A tab you created by hand
-                  can stay empty.)
-                </p>
-              )}
               {i === 2 && !s.connected && (
                 <p className="muted" style={{ fontSize: 12.5 }}>
                   {perfWarning ? (
@@ -231,8 +207,8 @@ export function ConnectionsCard() {
             Delete everything in <code>Code.gs</code>, click <b>Copy script</b> above and paste, then <b>Save</b>.
           </li>
           <li>
-            Choose <code>setup</code> in the toolbar → <b>Run</b> → allow the permissions. It uses your <b>Projects</b> / <b>Project Progress</b> tabs (creates them only if
-            missing) and fills in their header row.
+            Choose <code>setup</code> in the toolbar → <b>Run</b> → allow the permissions. (The Projects / Project Progress tabs and their columns are created automatically
+            when the first project is saved.)
           </li>
           <li>
             <b>Deploy → New deployment</b> → gear → <b>Web app</b> · Execute as <b>Me</b> · Who has access <b>Anyone</b> → <b>Deploy</b> → copy the Web app URL.
@@ -282,6 +258,49 @@ export function ConnectionsCard() {
             Run the workflow once on GitHub (Actions → Run workflow). After that, use <b>Update data</b> at the top of the dashboard.
           </li>
         </ol>
+        <details style={{ marginTop: 14 }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Never update the script by hand again (automatic deploy from GitHub)</summary>
+          <div style={{ fontSize: 13.5, display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+            <p style={{ margin: 0 }}>
+              Since version 2.0 the script is a small, general read/write service, so new dashboard features normally need <b>no</b> script change. For the rare
+              times it does, GitHub can publish it to the same Web app URL by itself. One-time setup (about 10 minutes, with the Google account that owns the script):
+            </p>
+            <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <li>
+                Turn on <b>Google Apps Script API</b> at{' '}
+                <a href="https://script.google.com/home/usersettings" target="_blank" rel="noopener noreferrer">
+                  script.google.com/home/usersettings
+                </a>
+                .
+              </li>
+              <li>
+                Open{' '}
+                <a href="https://shell.cloud.google.com" target="_blank" rel="noopener noreferrer">
+                  Google Cloud Shell
+                </a>{' '}
+                (free, in the browser) and run <code>npx @google/clasp@2.4.2 login --no-localhost</code>. Open the link, allow, paste the code back. Then run{' '}
+                <code>cat ~/.clasprc.json</code> and copy everything it prints.
+              </li>
+              <li>
+                In GitHub{repoUrl && (
+                  <>
+                    {' '}
+                    (<a href={`${repoUrl}/settings/secrets/actions`} target="_blank" rel="noopener noreferrer">open secrets</a>)
+                  </>
+                )}
+                : add the <b>secret</b> <code>CLASPRC_JSON</code> = what you copied. It is a login key for your Google account — keep it only in GitHub secrets.
+              </li>
+              <li>
+                In Apps Script → Project Settings → <b>Script ID</b>: copy it and add the GitHub <b>variable</b> <code>APPS_SCRIPT_ID</code>. (The Web app is taken from{' '}
+                <code>GOVERNANCE_APPS_SCRIPT_URL</code>.)
+              </li>
+              <li>
+                Done. Every change to <code>apps-script/</code> on GitHub runs <b>Actions → Deploy Apps Script</b>, which updates the same URL (you can also run it by
+                hand there).
+              </li>
+            </ol>
+          </div>
+        </details>
       </Card>
     </>
   );

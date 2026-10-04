@@ -5,8 +5,10 @@
  * of the Work Sheet and logs old → new values in the "Form Log" tab.
  */
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { readAppsScriptJson } from '../services/appsScriptResponse';
 import { SearchPanel } from './SearchPanel';
+import { asDate, asMonth, scriptRead, scriptWrite, withAnyUrl, type WriteValue } from '../services/scriptApi';
+
+const JOB_COLUMNS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'KAM', 'Number of SKU', 'Status', 'Uploaded by', 'Uploaded SKU Count', 'Rejected SKU Count', 'Upload date', 'Upload Month', 'QC By', 'QC Status', 'Visual editor', 'Image Status', 'Image count', 'Comments'];
 import { isAppsScriptUrl, LOCAL_URL_KEY, localAppsScriptUrl } from '../services/appsScriptUrl';
 
 type Cell = string | number | null;
@@ -128,31 +130,12 @@ export function TaskForm() {
     setJobInput(id);
     setChecking(true);
     try {
-      // Try each known Web app URL (this browser's, then the dashboard's) until one runs the current script.
-      let j: (Lookup & { error?: string }) | null = null;
-      let lastError = '';
-      for (const u of candidates) {
-        try {
-          const res = await fetch(`${u}?action=job&id=${encodeURIComponent(id)}&t=${Date.now()}`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const r = await readAppsScriptJson<Lookup & { error?: string }>(res);
-          if (!r.ok) throw new Error(r.error || 'Could not check the JOB ID.');
-          if (typeof r.found !== 'boolean') throw new Error('old');
-          j = r;
-          setWorkingUrl(u);
-          break;
-        } catch (err) {
-          lastError = (err as Error).message;
-        }
-      }
-      if (!j) {
-        if (lastError === 'old') {
-          throw new Error(
-            `The Apps Script Web app is an older version that cannot check JOB IDs yet (URL …${(candidates[candidates.length - 1] ?? '').slice(-26, -5)}). In Apps Script: Deploy → Manage deployments → ✏️ → Version: New version → Deploy. Opening the URL with ?action=ping must show "version":"1.6.1".`,
-          );
-        }
-        throw new Error(lastError.startsWith('HTTP') ? `The Google Sheets service returned ${lastError}.` : lastError);
-      }
+      // Try each known Web app URL (this browser's, then the default) until one runs the current script.
+      const { value: r, url: used } = await withAnyUrl(candidates, (u) => scriptRead(u, { sheet: 'work', key: id, cols: JOB_COLUMNS }));
+      setWorkingUrl(used);
+      const j: Lookup = r.objects.length
+        ? { ok: true, found: true, id, job: r.objects[0] as unknown as Job, locked: r.locked ?? [], statuses: STATUSES }
+        : { ok: true, found: false, id };
       setLookup(j);
       if (j.found && j.job) {
         const d = isoDay(j.job['Upload date']);
@@ -215,21 +198,24 @@ export function TaskForm() {
     setBusy(true);
     setResult(null);
     try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        // expect = the values shown when the JOB ID was checked; the script refuses to save if the row changed since.
-        body: JSON.stringify({
-          action: 'submitTask',
-          jobId: job['JOB ID'],
-          by: who.trim(),
-          changes,
-          expect: Object.fromEntries(Object.keys(changes).map((k) => [k, (job as unknown as Record<string, Cell>)[k] ?? null])),
-        }),
-      });
-      if (!res.ok) throw new Error(`The Google Sheets service returned HTTP ${res.status}.`);
-      const j = await readAppsScriptJson<{ ok: boolean; error?: string; written?: string[]; skipped?: { field: string; reason: string }[] }>(res);
-      if (!j.ok) throw new Error(j.error || 'The update was rejected.');
+      // expect = the values shown when the JOB ID was checked; the script refuses to save if the row changed since.
+      const jobRow = job as unknown as Record<string, Cell>;
+      const set: Record<string, WriteValue> = {};
+      for (const [k, v] of Object.entries(changes)) {
+        set[k] = k === 'Upload date' ? asDate(v) : k === 'Upload Month' ? asMonth(v) : k === 'Uploaded SKU Count' ? (v === '' ? '' : Number(v)) : v;
+      }
+      const fields = Object.keys(set);
+      // Credit the work to the person submitting when nobody is set as uploader yet.
+      if (!text(job['Uploaded by']) && who.trim()) set['Uploaded by'] = who.trim();
+      const expect = Object.fromEntries([...fields, 'Uploaded by'].map((k) => [k, jobRow[k] ?? null]));
+      const [j] = await scriptWrite(url, who.trim(), [{ sheet: 'work', op: 'update', key: job['JOB ID'], set, expect }]);
+      if (!j.ok) {
+        throw new Error(
+          j.stale
+            ? `Not saved — this job was changed by someone else after you checked it (${j.reason?.replace(/^.*\((.*)\)$/, '$1')}). Click Check again to load the latest values.`
+            : `Not saved: ${j.reason}`,
+        );
+      }
       const skipped = (j.skipped ?? []).map((x) => `${x.field} (${x.reason})`);
       setResult({
         tone: skipped.length ? 'warn' : 'good',

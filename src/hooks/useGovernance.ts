@@ -116,20 +116,20 @@ function useGovernanceState() {
   const logProgress = useCallback(
     async (rows: Row[]) => {
       guard();
-      await api.logProgress(writeUrl!, rows);
+      await api.logProgress(writeUrl!, rows, who);
       setPending({ ...pending, logs: [...pending.logs, ...rows] });
       reload();
     },
-    [writeUrl, pending, reload],
+    [writeUrl, who, pending, reload],
   );
   const deleteLog = useCallback(
     async (id: string) => {
       guard();
-      await api.deleteLog(writeUrl!, id);
+      await api.deleteLog(writeUrl!, id, who);
       setPending({ ...pending, deletedLogs: [...pending.deletedLogs, id], logs: pending.logs.filter((l) => l['Log ID'] !== id) });
       reload();
     },
-    [writeUrl, pending, reload],
+    [writeUrl, who, pending, reload],
   );
 
   return {
