@@ -44,6 +44,23 @@ function NavItems({ route, onNavigate }: { route: Route; onNavigate: (r: Route) 
   );
 }
 
+/** Separate pages for team leads and employees (open in a new tab). */
+function ToolLinks() {
+  return (
+    <>
+      <div className="nav-section">Tools</div>
+      <a className="nav-item" href="assign.html" target="_blank" rel="noopener" title="Task board — assign jobs (opens in a new tab)">
+        <Icon name="clipboard" />
+        <span className="label">Task assign ↗</span>
+      </a>
+      <a className="nav-item" href="form.html" target="_blank" rel="noopener" title="Job desk — search a job, update your task (opens in a new tab)">
+        <Icon name="upload" />
+        <span className="label">Job desk ↗</span>
+      </a>
+    </>
+  );
+}
+
 export function Sidebar({ route, onNavigate, sheetTitle }: { route: Route; onNavigate: (r: Route) => void; sheetTitle?: string }) {
   return (
     <aside className="sidebar" aria-label="Main navigation">
@@ -58,10 +75,7 @@ export function Sidebar({ route, onNavigate, sheetTitle }: { route: Route; onNav
       </div>
       <nav className="nav">
         <NavItems route={route} onNavigate={onNavigate} />
-        <a className="nav-item" href="form.html" target="_blank" rel="noopener" title="Task update form (opens in a new tab)">
-          <Icon name="upload" />
-          <span className="label">Task update form ↗</span>
-        </a>
+        <ToolLinks />
       </nav>
       <div className="sidebar-foot">
         <div>Source: Google Sheets</div>
@@ -105,6 +119,7 @@ export function MobileNav({ route, onNavigate }: { route: Route; onNavigate: (r:
           <div className="sheet-backdrop" onClick={() => setOpen(false)} />
           <div className="sheet" role="dialog" aria-label="More pages">
             <NavItems route={route} onNavigate={go} />
+            <ToolLinks />
           </div>
         </>
       )}
