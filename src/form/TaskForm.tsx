@@ -116,7 +116,9 @@ export function TaskForm() {
       if (!j.ok) throw new Error(j.error || 'Could not check the JOB ID.');
       if (typeof j.found !== 'boolean') {
         throw new Error(
-          'The Apps Script Web app is an older version that cannot check JOB IDs yet. Paste the latest Code.gs into Apps Script, then Deploy → Manage deployments → ✏️ → Version: New version → Deploy.',
+          `The Apps Script Web app this form uses is an older version that cannot check JOB IDs yet. It uses …${url.slice(-26, -5)} (${
+            localAppsScriptUrl() ? 'saved in this browser with “Use here”' : 'from the dashboard settings'
+          }). In Apps Script open Deploy → Manage deployments, pick the deployment whose URL ends the same way, click ✏️, set Version: New version → Deploy. Check: opening the URL with ?action=ping must show "version":"1.6.1".`,
         );
       }
       setLookup(j);
