@@ -6,7 +6,7 @@
  */
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { readAppsScriptJson } from '../services/appsScriptResponse';
-import { localAppsScriptUrl } from '../services/appsScriptUrl';
+import { isAppsScriptUrl, LOCAL_URL_KEY, localAppsScriptUrl } from '../services/appsScriptUrl';
 
 type Cell = string | number | null;
 interface Job {
@@ -50,7 +50,7 @@ const isoDay = (v: Cell) => {
   return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : '';
 };
 const monthOf = (iso: string) => (iso ? iso.slice(0, 7) : '');
-const fmt = (v: Cell) => (v === null || v === '' ? '—' : typeof v === 'number' ? v.toLocaleString('en-US') : String(v));
+const fmt = (v: Cell | undefined) => (v === null || v === undefined || v === '' ? '—' : typeof v === 'number' ? v.toLocaleString('en-US') : String(v));
 
 function useStored(key: string, initial: string): [string, (v: string) => void] {
   const [v, setV] = useState(() => {
@@ -95,7 +95,23 @@ export function TaskForm() {
       });
   }, []);
 
-  const url = localAppsScriptUrl() || cfg?.appsScriptUrl || null;
+  const [localUrl, setLocalUrl] = useState(() => localAppsScriptUrl());
+  /** URL that answered a JOB ID check correctly (used for saving). */
+  const [workingUrl, setWorkingUrl] = useState<string | null>(null);
+  const candidates = [...new Set([localUrl, cfg?.appsScriptUrl].filter((u): u is string => !!u))];
+  const url = workingUrl || candidates[0] || null;
+  const [editUrl, setEditUrl] = useState<string | null>(null);
+  const saveLocalUrl = (v: string | null) => {
+    try {
+      if (v) localStorage.setItem(LOCAL_URL_KEY, JSON.stringify(v.trim()));
+      else localStorage.removeItem(LOCAL_URL_KEY);
+    } catch {
+      /* ignore */
+    }
+    setLocalUrl(v ? v.trim() : null);
+    setWorkingUrl(null);
+    setEditUrl(null);
+  };
   const job = lookup?.found ? lookup.job! : null;
   const locked = new Set(lookup?.locked ?? []);
   const statuses = lookup?.statuses?.length ? lookup.statuses : STATUSES;
@@ -110,16 +126,30 @@ export function TaskForm() {
     setJobInput(id);
     setChecking(true);
     try {
-      const res = await fetch(`${url}?action=job&id=${encodeURIComponent(id)}&t=${Date.now()}`);
-      if (!res.ok) throw new Error(`The Google Sheets service returned HTTP ${res.status}.`);
-      const j = await readAppsScriptJson<Lookup & { error?: string }>(res);
-      if (!j.ok) throw new Error(j.error || 'Could not check the JOB ID.');
-      if (typeof j.found !== 'boolean') {
-        throw new Error(
-          `The Apps Script Web app this form uses is an older version that cannot check JOB IDs yet. It uses …${url.slice(-26, -5)} (${
-            localAppsScriptUrl() ? 'saved in this browser with “Use here”' : 'from the dashboard settings'
-          }). In Apps Script open Deploy → Manage deployments, pick the deployment whose URL ends the same way, click ✏️, set Version: New version → Deploy. Check: opening the URL with ?action=ping must show "version":"1.6.1".`,
-        );
+      // Try each known Web app URL (this browser's, then the dashboard's) until one runs the current script.
+      let j: (Lookup & { error?: string }) | null = null;
+      let lastError = '';
+      for (const u of candidates) {
+        try {
+          const res = await fetch(`${u}?action=job&id=${encodeURIComponent(id)}&t=${Date.now()}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const r = await readAppsScriptJson<Lookup & { error?: string }>(res);
+          if (!r.ok) throw new Error(r.error || 'Could not check the JOB ID.');
+          if (typeof r.found !== 'boolean') throw new Error('old');
+          j = r;
+          setWorkingUrl(u);
+          break;
+        } catch (err) {
+          lastError = (err as Error).message;
+        }
+      }
+      if (!j) {
+        if (lastError === 'old') {
+          throw new Error(
+            `The Apps Script Web app is an older version that cannot check JOB IDs yet (URL …${(candidates[candidates.length - 1] ?? '').slice(-26, -5)}). In Apps Script: Deploy → Manage deployments → ✏️ → Version: New version → Deploy. Opening the URL with ?action=ping must show "version":"1.6.1".`,
+          );
+        }
+        throw new Error(lastError.startsWith('HTTP') ? `The Google Sheets service returned ${lastError}.` : lastError);
       }
       setLookup(j);
       if (j.found && j.job) {
@@ -352,6 +382,29 @@ export function TaskForm() {
             </div>
           </form>
         )}
+        <div className="tf-hint" style={{ textAlign: 'center' }}>
+          {url ? (
+            <>
+              Connected to Web app …{url.slice(-26, -5)} ({workingUrl ? 'working' : localUrl === url ? 'saved in this browser' : 'from the dashboard'}) ·{' '}
+            </>
+          ) : null}
+          <button type="button" className="rb-link" onClick={() => setEditUrl(editUrl === null ? localUrl ?? '' : null)}>
+            {editUrl === null ? 'Change connection' : 'Close'}
+          </button>
+          {editUrl !== null && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+              <input className="input" value={editUrl} onChange={(e) => setEditUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" />
+              <button type="button" className="btn btn-sm" disabled={!isAppsScriptUrl(editUrl)} onClick={() => saveLocalUrl(editUrl)}>
+                Use
+              </button>
+              {localUrl && (
+                <button type="button" className="btn btn-sm" onClick={() => saveLocalUrl(null)} title="Forget the URL saved in this browser and use the dashboard's">
+                  Remove saved
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
