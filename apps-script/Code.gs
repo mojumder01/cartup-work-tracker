@@ -23,7 +23,7 @@
  *   GITHUB_TOKEN = fine-grained token (only this repo, "Actions: Read and write"), GITHUB_REPO = owner/repo.
  */
 
-var SCRIPT_VERSION = '2.1.4';
+var SCRIPT_VERSION = '2.1.5';
 
 var WORK_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
 var GOVERNANCE_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
@@ -82,14 +82,18 @@ function json_(obj) {
 function account_() {
   try { return Session.getEffectiveUser().getEmail() || "this script's account"; } catch (e) { return "this script's account"; }
 }
-function norm_(v) {
-  if (Object.prototype.toString.call(v) === '[object Date]') return out_(v, Session.getScriptTimeZone());
+/** The spreadsheet's own time zone (dates are created / shown in it, whatever the script project's zone is). */
+function tzOf_(sh) {
+  try { return sh.getParent().getSpreadsheetTimeZone() || Session.getScriptTimeZone(); } catch (e) { return Session.getScriptTimeZone(); }
+}
+function norm_(v, tz) {
+  if (Object.prototype.toString.call(v) === '[object Date]') return out_(v, tz || Session.getScriptTimeZone());
   return v === null || v === undefined ? '' : String(v).trim();
 }
 function isDate_(v) { return Object.prototype.toString.call(v) === '[object Date]'; }
 function out_(v, tz) {
   if (isDate_(v)) {
-    var hasTime = v.getHours() || v.getMinutes() || v.getSeconds();
+    var hasTime = Utilities.formatDate(v, tz, 'HH:mm:ss') !== '00:00:00';
     return Utilities.formatDate(v, tz, hasTime ? "yyyy-MM-dd'T'HH:mm:ss" : 'yyyy-MM-dd');
   }
   return v === '' ? null : v;
@@ -100,8 +104,14 @@ function str_(v, max) {
   if (/^[=+\-@]/.test(s)) s = "'" + s;
   return s;
 }
+/** "yyyy-MM-dd" → midnight of that day in the sheet's time zone (so the sheet shows exactly that day). */
+function day_(y, m, d, tz) {
+  var iso = y + '-' + ('0' + m).slice(-2) + '-' + ('0' + d).slice(-2);
+  if (tz && Utilities.parseDate) return Utilities.parseDate(iso, tz, 'yyyy-MM-dd');
+  return new Date(y, m - 1, d);
+}
 /** Website value → cell value: {date:'yyyy-mm-dd'}, {month:'yyyy-mm'}, {now:true}, number, text. */
-function in_(v, now) {
+function in_(v, now, tz) {
   if (v === null || v === undefined || v === '') return '';
   if (typeof v === 'number') {
     if (!isFinite(v) || Math.abs(v) > 1e12) throw new Error('Invalid number');
@@ -112,7 +122,7 @@ function in_(v, now) {
     if (v.now) return now;
     var m = String(v.date || v.month || '').match(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/);
     if (!m) throw new Error('Invalid date');
-    return new Date(Number(m[1]), Number(m[2]) - 1, v.month ? 1 : Number(m[3] || 1));
+    return day_(Number(m[1]), Number(m[2]), v.month ? 1 : Number(m[3] || 1), tz);
   }
   return str_(v);
 }
@@ -155,7 +165,7 @@ function layout_(sh, cfg) {
   for (var r = 0; r < top.length; r++) {
     if (top[r].some(function (h) { return String(h).trim().toLowerCase() === cfg.key.toLowerCase(); })) { headerRow = r + 1; break; }
   }
-  var L = { sh: sh, cfg: cfg, headerRow: headerRow, headers: [], width: width };
+  var L = { sh: sh, cfg: cfg, headerRow: headerRow, headers: [], width: width, tz: tzOf_(sh) };
   L.headers = sh.getRange(headerRow, 1, 1, width).getValues()[0].map(function (h) { return String(h).trim(); });
   L.col = function (name) {
     var n = String(name).toLowerCase();
@@ -208,7 +218,7 @@ function read_(p) {
   if (!cfg) throw new Error('Unknown sheet "' + name + '"');
   var sh = tab_(cfg, !!cfg.managed);
   var L = layout_(sh, cfg);
-  var tz = Session.getScriptTimeZone();
+  var tz = L.tz;
   var cols = (p.cols ? String(p.cols).split(',') : L.headers).map(function (s) { return String(s).trim(); })
     .filter(function (s) { return s && !SECRET.test(s); });
   var idx = cols.map(function (c) { return L.col(c) - 1; });
@@ -248,11 +258,11 @@ function read_(p) {
   var order = p.order === 'asc' ? 1 : -1;
   for (var n = 0; n < data.length; n++) {
     var r = data[order === 1 ? n : data.length - 1 - n];
-    if (keyC >= 0 && !norm_(r[keyC])) continue;
-    if (need.length && !need.some(function (k) { return norm_(r[k]) !== ''; })) continue;
-    if (q && !qCols.some(function (k) { return norm_(r[k]).toLowerCase().indexOf(q) >= 0; })) continue;
+    if (keyC >= 0 && !norm_(r[keyC], tz)) continue;
+    if (need.length && !need.some(function (k) { return norm_(r[k], tz) !== ''; })) continue;
+    if (q && !qCols.some(function (k) { return norm_(r[k], tz).toLowerCase().indexOf(q) >= 0; })) continue;
     if (notIn || recent) {
-      var a = notIn && notIn.c >= 0 && notIn.vals.indexOf(norm_(r[notIn.c]).toLowerCase()) < 0;
+      var a = notIn && notIn.c >= 0 && notIn.vals.indexOf(norm_(r[notIn.c], tz).toLowerCase()) < 0;
       var b = recent && recent.cs.some(function (k) { return isDate_(r[k]) && r[k].getTime() >= recent.since; });
       if (!a && !b) continue;
     }
@@ -282,11 +292,20 @@ function mirror_(W, row, cache) {
     var src = W.sh.getRange(row, 1, 1, W.width).getValues()[0];
     var srcOf = function (name) { var c = W.col(name); return c ? src[c - 1] : null; };
     var values = {};
-    Object.keys(map).forEach(function (f) { var v = srcOf(f); if (v !== null && norm_(v) !== '') values[f] = v; });
+    Object.keys(map).forEach(function (f) {
+      var v = srcOf(f);
+      if (v === null || norm_(v, W.tz) === '') return;
+      // A date (no time) is copied as the same calendar day in the other sheet's time zone.
+      if (isDate_(v) && Utilities.formatDate(v, W.tz, 'HH:mm:ss') === '00:00:00') {
+        var p = Utilities.formatDate(v, W.tz, 'yyyy-MM-dd').split('-');
+        v = day_(Number(p[0]), Number(p[1]), Number(p[2]), C.tz);
+      }
+      values[f] = v;
+    });
     // Catalogue Comment = Rejected SKU Count + Comments, like "89 rejected. (name & image missing)".
     if (map['Comments']) {
       var rej = Number(srcOf('Rejected SKU Count')) || 0;
-      var note = norm_(srcOf('Comments')).replace(/\s*\n\s*/g, '; ');
+      var note = norm_(srcOf('Comments'), W.tz).replace(/\s*\n\s*/g, '; ');
       var merged = [rej > 0 ? rej + ' rejected.' : '', note].filter(String).join(' ');
       if (merged) values['Comments'] = merged;
     }
@@ -299,7 +318,7 @@ function mirror_(W, row, cache) {
     var target = -1;
     var letter = String(prop_('COMMERCIAL_JOB_COL') || COMMERCIAL_JOB_COL).toUpperCase();
     var jobCol = C.col('JOB ID') || (/^[A-Z]{1,2}$/.test(letter) ? letter.split('').reduce(function (z, ch) { return z * 26 + ch.charCodeAt(0) - 64; }, 0) : 0);
-    var id = norm_(srcOf('JOB ID'));
+    var id = norm_(srcOf('JOB ID'), W.tz);
     if (!jobCol || !id) return { ok: false, written: [], skipped: [], reason: 'no JOB ID to look up' };
     var hit = C.sh.getRange(C.headerRow + 1, jobCol, last - C.headerRow, 1).createTextFinder(id).matchEntireCell(true).matchCase(false).findNext();
     if (hit) target = hit.getRow();
@@ -313,7 +332,7 @@ function mirror_(W, row, cache) {
       if (!c || SECRET.test(name)) { skipped.push({ field: name, reason: 'column not found' }); return; }
       if (isFormula_(C, target, c)) { skipped.push({ field: name, reason: 'calculated by the sheet' }); return; }
       var cell = C.sh.getRange(target, c);
-      if (norm_(cell.getValue()) === norm_(values[f])) return;
+      if (norm_(cell.getValue(), C.tz) === norm_(values[f], C.tz)) return;
       cell.setValue(values[f]);
       written.push(name);
     });
@@ -336,7 +355,7 @@ function mirror_(W, row, cache) {
  * Work Sheet updates with mirror:true also copy the changed cells to the Content/Commercial tab (COMMERCIAL_MAP).
  * → { ok, results:[{ ok, key, written:[…], skipped:[{field, reason}], reason?, duplicate?, mirror? }] }
  */
-function write_(body, now) {
+function write_(body, nowDate) {
   var by = str_(body.by, 60);
   if (!by) throw new Error('Your name is required.');
   var ops = [].concat(body.ops || []);
@@ -344,7 +363,7 @@ function write_(body, now) {
   var layouts = {};
   var mirrorCache = {};
   var logRows = [];
-  var tz = Session.getScriptTimeZone();
+  var nowAt = function (tz) { return Utilities.formatDate(nowDate, tz, "yyyy-MM-dd'T'HH:mm:ss"); };
   var results = ops.map(function (o) {
     var key = String((o && o.key) || '').trim();
     try {
@@ -365,7 +384,7 @@ function write_(body, now) {
         ensureCols_(L, fields);
         var rowVals = [];
         for (var i = 0; i < L.headers.length; i++) rowVals.push('');
-        fields.forEach(function (f) { var c = L.col(f); if (c) rowVals[c - 1] = in_(set[f], now); });
+        fields.forEach(function (f) { var c = L.col(f); if (c) rowVals[c - 1] = in_(set[f], nowAt(L.tz), L.tz); });
         L.sh.getRange(L.sh.getLastRow() + 1, 1, 1, rowVals.length).setValues([rowVals]);
         return { ok: true, key: key, written: fields, skipped: [] };
       }
@@ -386,8 +405,8 @@ function write_(body, now) {
       Object.keys(o.expect || {}).forEach(function (f) {
         var c = L.col(f);
         if (!c || SECRET.test(f)) return;
-        var cur = norm_(L.sh.getRange(row, c).getValue());
-        if (cur !== norm_(o.expect[f])) stale.push(f + ' is now "' + (cur || 'empty') + '"');
+        var cur = norm_(L.sh.getRange(row, c).getValue(), L.tz);
+        if (cur !== norm_(o.expect[f], L.tz)) stale.push(f + ' is now "' + (cur || 'empty') + '"');
       });
       if (stale.length) return { ok: false, key: key, stale: true, reason: 'changed by someone else since you loaded it (' + stale.join('; ') + ')' };
 
@@ -400,17 +419,17 @@ function write_(body, now) {
         if (!c) { skipped.push({ field: f, reason: 'column not found' }); return; }
         if (isFormula_(L, row, c)) { skipped.push({ field: f, reason: 'calculated by the sheet' }); return; }
         var cell = L.sh.getRange(row, c);
-        var old = norm_(cell.getValue());
-        var val = in_(set[f], now);
-        if (old === norm_(val)) return;
+        var old = norm_(cell.getValue(), L.tz);
+        var val = in_(set[f], nowAt(L.tz), L.tz);
+        if (old === norm_(val, L.tz)) return;
         cell.setValue(val);
         written.push(f);
-        if (cfg.log) logRows.push([now, key, by, f, old, isDate_(val) ? out_(val, tz) : String(val)]);
+        if (cfg.log) logRows.push([nowAt(L.tz), key, by, f, old, isDate_(val) ? out_(val, L.tz) : String(val)]);
       });
       var res = { ok: true, key: key, written: written, skipped: skipped };
       if (o.mirror && name === 'work') {
         res.mirror = mirror_(L, row, mirrorCache);
-        (res.mirror.written || []).forEach(function (f) { logRows.push([now, key, by, 'Content/Commercial → ' + f, '', 'copied from Work Sheet']); });
+        (res.mirror.written || []).forEach(function (f) { logRows.push([nowAt(L.tz), key, by, 'Content/Commercial → ' + f, '', 'copied from Work Sheet']); });
       }
       return res;
     } catch (err) {
@@ -452,8 +471,7 @@ function doPost(e) {
   try {
     lock.waitLock(25000);
     var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    var now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
-    if (body.action === 'write') return json_(write_(body, now));
+    if (body.action === 'write') return json_(write_(body, new Date()));
     if (body.action === 'triggerSync') return json_(triggerSync_());
     throw new Error('Unknown action');
   } catch (err) {
