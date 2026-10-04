@@ -201,6 +201,8 @@ Options (remembered in your browser):
 - **Teams & people:** tick Production, Visual and/or QC, and tick who appears. *Auto* = active team members with work in either period. People who left are not pre-selected.
 - **Summary line & Key Notes** are generated from the numbers and can be edited before printing.
 - **Extra highlight boxes** for work that is not in the Work Sheet (Campaign Sticker, Keyword Tag Checking, Category Revamp…).
+- **Retail [Picks] uploads** (own table) and **Pending QC (Admin Portal, now)** in At a Glance, from the two extra sheets below. Each is shown only when its sheet is connected.
+- **Project tables:** REVAMP projects set to *Individual Summary* or *Both* appear as tables on this slide. Their "At a Glance" line (if set) is added to the panel. Tick which ones appear.
 - **Excel** downloads the same tables.
 
 How each number is calculated (checked against the Week 37 vs Week 38 template):
@@ -229,6 +231,10 @@ To go back to automatic syncing, add a `schedule:` block to `.github/workflows/d
 | 1 | **Cartup Content Work Tracker** (`GOOGLE_SHEET_ID`) | `Work Sheet`, `KPI & Target`, `Admin portal QC import data`, optional `Team Members` | Every dashboard page, Individual Summary, KPI |
 | 2 | **Governance Wrork Tracker** (`config → governance`) | `Main`, `Projects`, `Project Progress` | Ad-Hoc Tasks, REVAMP Projects, Product Governance report |
 | 3 | **Catalogue Overall Performance** (variable `PERFORMANCE_SHEET_ID`) | `Daily Performance`, `Monthly Performance`, `KPI`, `Team`, `Import - ContentCommercial Work`, `Import - Retail Picks Upload…` | Daily / Monthly Performance report; Team tab "Resigned" = left the job |
+| 4 | **Retail [Picks] Upload Request, Import** (`config → extraSources.retail`) | the tab with gid `1610558392` | Individual Summary: Retail Picks table per uploader + "Retail SKUs Uploaded" |
+| 5 | **Admin Portal Pending QC** (`config → extraSources.pendingQc`) | the tab with gid `0` | Individual Summary: "Pending QC (Admin Portal, now)" |
+
+Sheets 4 and 5 are read-only views. Their columns are detected by header name, and Settings → Connections lists what was found and what is missing.
 
 Each spreadsheet must be shared with the service-account email as **Viewer**. Settings → **Connections** shows which tabs were found.
 
@@ -261,6 +267,32 @@ Each project becomes one block on the Product Governance slide. Everything is en
 | Report lines (one per row) | *Highlight & Description*, *Category Shifting* |
 | Numbers per week / month | **Sum** of the entries (daily work), or **Latest** entry (running totals copied from a tracker) |
 | Report note, Show in report | *Product Name: title length/tag cleanup …* |
+
+#### Custom tables (+ New project)
+
+**+ New project** starts from a template, and a **live preview** of the report block updates while you edit:
+
+| Template | Example |
+|---|---|
+| Check per person + target | *Search Keyword Error Checking (Target: 1,000)* — Assign · Issue Found · Already Ok · Pending · Count, *Unique Total* row |
+| Per person, compare weeks | *Campaign — Sticker Image* — W38 · W39 · Δ per person |
+| Metrics, compare weeks | *Electronics Category Revamp* — Total SKUs / Reviewed / Wrong Found / Updated / Pending, W38 · W39 |
+| Working / Updated, Status breakdown, Counts | the Product Governance blocks |
+| Blank custom table | your own design |
+
+In a **custom table** you choose the following:
+- **Columns:** add, rename, reorder and remove them. Each column is a *number people enter* or a *total of the number columns*.
+- **Rows:** a list you type, or the assigned people (one row each).
+- **Compare:** previous vs current period, or the current period only.
+- **Total row:** add one and choose its label.
+- **Target:** shown in the title.
+- **Δ column.**
+
+For every project you also choose:
+- **Show in:** the Product Governance report, the Individual Summary, or both.
+- **"At a Glance" line:** an optional label, a main number and small extra numbers.
+
+Entries are saved to `Project Progress` with the numbers in a `Values` column (JSON, e.g. `{"Issue Found":120,"Already Ok":300}`). The new `Projects` columns (`Columns`, `Rows`, `Compare`, `Show Delta`, `Total Label`, `Target`, `Reports`, `Glance`) are added by the Apps Script automatically, so no new deployment is needed.
 
 **Log progress** (inside a project) has one row per report line, and each line is saved as its own row in `Project Progress` (with a `Line` column). A project whose first entry falls in the reported week gets a **NEW** tag. In the report you can tick which blocks appear, edit any block's title or note, and edit the summary and key notes. Then download **PDF**, **PowerPoint** (every text box and table can be edited in PowerPoint / Google Slides) or **Excel**.
 

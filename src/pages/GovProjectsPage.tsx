@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { LAYOUT_HELP, PROJECT_PRIORITIES, PROJECT_STATUSES, PROJECT_WORK_TYPES, REPORT_LAYOUTS, type ReportLayout } from '../config/governance.config';
+import { PROJECT_STATUSES } from '../config/governance.config';
 import { useApp } from '../hooks/AppContext';
 import { useGovernance } from '../hooks/useGovernance';
-import { metricLabels, newId, projectStats, type Project, type ProjectStats } from '../utils/governance';
+import { customStats, metricLabels, newId, numberColumns, projectRows, projectStats, type Project, type ProgressLog, type ProjectStats } from '../utils/governance';
+import { ProjectForm } from './gov/ProjectForm';
 import { fmtDate, fmtNum, fmtPct, fmtRelative, toIsoDate } from '../utils/format';
 import { Banner, Card, EmptyState, ErrorState, KpiCard, Meter, Segmented } from '../components/ui';
 import { Icon } from '../components/Icon';
@@ -23,233 +24,6 @@ function usePeople() {
     adhoc?.tasks.forEach((t) => t.person && set.add(t.person));
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [roster, adhoc]);
-}
-
-/* ------------------------------------------------------------------ */
-/* Create / edit form                                                  */
-/* ------------------------------------------------------------------ */
-
-const layoutDefaults = (l: ReportLayout) => LAYOUT_HELP[l];
-
-function ProjectForm({ initial, onClose, onSave }: { initial: Project | null; onClose: () => void; onSave: (row: Row) => Promise<void> }) {
-  const people = usePeople();
-  const [f, setF] = useState(() => ({
-    name: initial?.name ?? '',
-    workType: initial?.workType ?? '',
-    description: initial?.description ?? '',
-    pocs: initial?.pocs ?? [],
-    assignees: initial?.assignees ?? [],
-    totalSkus: initial?.totalSkus != null ? String(initial.totalSkus) : '',
-    startDate: initial?.startDate || today(),
-    dueDate: initial?.dueDate ?? '',
-    status: initial?.status ?? 'Planned',
-    priority: initial?.priority ?? 'Medium',
-    foundLabel: initial?.foundLabel && initial.foundLabel !== 'Issues found' ? initial.foundLabel : '',
-    layout: (initial?.layout ?? 'Working / Updated') as ReportLayout,
-    lineHeader: initial?.lineHeader ?? layoutDefaults('Working / Updated').lineHeader,
-    lines: (initial?.lines ?? []).join('\n'),
-    valueMode: initial?.valueMode ?? 'Sum',
-    reportNote: initial?.reportNote ?? '',
-    showInReport: initial?.showInReport ?? true,
-  }));
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const up = (patch: Partial<typeof f>) => setF({ ...f, ...patch });
-  // People listed in the project but no longer in the roster stay selectable.
-  const choices = useMemo(() => [...new Set([...people, ...f.pocs, ...f.assignees])].sort((x, y) => x.localeCompare(y)), [people, f.pocs, f.assignees]);
-  const toggle = (list: string[], p: string, on: boolean) => (on ? [...list.filter((x) => x !== p), p] : list.filter((x) => x !== p));
-  const setLayout = (layout: ReportLayout) => {
-    const oldDefault = layoutDefaults(f.layout).lineHeader;
-    up({ layout, lineHeader: !f.lineHeader || f.lineHeader === oldDefault ? layoutDefaults(layout).lineHeader : f.lineHeader });
-  };
-  const help = layoutDefaults(f.layout);
-  const firstLabel = f.layout === 'Reviewed / Found / Updated' ? 'Name of the “found” number' : 'Name of the number column';
-  const firstPlaceholder =
-    f.layout === 'Reviewed / Found / Updated' ? 'Issues found (e.g. Wrong Category Found)' : f.layout === 'Working / Updated' ? 'Working (or Worked)' : f.layout === 'Count' ? 'Count' : 'Count of SKUs';
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!f.name.trim()) return setErr('Project name is required.');
-    if (f.totalSkus && !/^\d[\d,]*$/.test(f.totalSkus.trim())) return setErr('Total SKUs must be a whole number.');
-    if (f.dueDate && f.startDate && f.dueDate < f.startDate) return setErr('Due date is before the start date.');
-    const lines = [...new Set(f.lines.split(/[;\n]/).map((x) => x.trim()).filter(Boolean))];
-    if (lines.length > 30) return setErr('Use at most 30 report lines.');
-    setBusy(true);
-    setErr(null);
-    try {
-      await onSave({
-        'Project Name': f.name.trim(),
-        'Work Type': f.workType.trim(),
-        Description: f.description.trim(),
-        POC: f.pocs.join(', '),
-        Assignees: [...new Set([...f.assignees])].join(', '),
-        'Total SKUs': f.totalSkus ? Number(f.totalSkus.replace(/,/g, '')) : '',
-        'Start Date': f.startDate,
-        'Due Date': f.dueDate,
-        Status: f.status,
-        Priority: f.priority,
-        'Found Label': f.foundLabel.trim() || (f.layout === 'Reviewed / Found / Updated' ? 'Issues found' : ''),
-        'Report Layout': f.layout,
-        'Line Header': f.lineHeader.trim() || help.lineHeader,
-        Lines: lines.join('; '),
-        'Value Mode': f.valueMode,
-        'Report Note': f.reportNote.trim(),
-        'Show In Report': f.showInReport ? 'Yes' : 'No',
-      });
-      onClose();
-    } catch (e2) {
-      setErr((e2 as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <>
-      <div className="drawer-backdrop" onClick={onClose} />
-      <form className="drawer gov-form" role="dialog" aria-label={initial ? 'Edit project' : 'New project'} onSubmit={submit}>
-        <div className="drawer-head">
-          <h3>{initial ? `Edit · ${initial.name}` : 'New REVAMP project'}</h3>
-          <button type="button" className="icon-btn" style={{ marginLeft: 'auto' }} onClick={onClose} aria-label="Close">
-            <Icon name="x" />
-          </button>
-        </div>
-        <div className="drawer-body gov-form-body">
-          <div className="gov-form-section">Project</div>
-          <label className="field">
-            <span>Project name * (report block title)</span>
-            <input className="input" value={f.name} onChange={(e) => up({ name: e.target.value })} placeholder="e.g. QC Rejected Inactive to Live" autoFocus />
-          </label>
-          <label className="field">
-            <span>Work type</span>
-            <input className="input" list="gov-work-types" value={f.workType} onChange={(e) => up({ workType: e.target.value })} placeholder="Choose or type" />
-            <datalist id="gov-work-types">
-              {PROJECT_WORK_TYPES.map((w) => (
-                <option key={w} value={w} />
-              ))}
-            </datalist>
-          </label>
-          <label className="field">
-            <span>Description / scope</span>
-            <textarea className="rb-textarea" value={f.description} onChange={(e) => up({ description: e.target.value })} placeholder="What will be reviewed and fixed" />
-          </label>
-          <div className="gov-2col">
-            <label className="field">
-              <span>Total SKUs (scope)</span>
-              <input className="input" inputMode="numeric" value={f.totalSkus} onChange={(e) => up({ totalSkus: e.target.value })} placeholder="e.g. 101402" />
-            </label>
-            <label className="field">
-              <span>Priority</span>
-              <select className="select" value={f.priority} onChange={(e) => up({ priority: e.target.value })}>
-                {PROJECT_PRIORITIES.map((x) => (
-                  <option key={x}>{x}</option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>Start date</span>
-              <input type="date" className="input" value={f.startDate} onChange={(e) => up({ startDate: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Due date</span>
-              <input type="date" className="input" value={f.dueDate} onChange={(e) => up({ dueDate: e.target.value })} />
-            </label>
-            <label className="field">
-              <span>Status</span>
-              <select className="select" value={f.status} onChange={(e) => up({ status: e.target.value })}>
-                {PROJECT_STATUSES.map((x) => (
-                  <option key={x}>{x}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="gov-form-section">People</div>
-          <div className="field">
-            <span>POC and team — tick POC for the owner(s) shown in the report (“POC: Limon / Muntasir”)</span>
-            <div className="gov-people">
-              <div className="gov-people-head">
-                <span>Name</span>
-                <span>POC</span>
-                <span>Assigned</span>
-              </div>
-              {choices.map((p) => (
-                <div key={p} className="gov-people-row">
-                  <span>{p}</span>
-                  <input type="checkbox" aria-label={`${p} is POC`} checked={f.pocs.includes(p)} onChange={(e) => up({ pocs: toggle(f.pocs, p, e.target.checked) })} />
-                  <input
-                    type="checkbox"
-                    aria-label={`Assign ${p}`}
-                    checked={f.assignees.includes(p)}
-                    onChange={(e) => up({ assignees: toggle(f.assignees, p, e.target.checked) })}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="gov-form-section">Report block (Product Governance slide)</div>
-          <label className="field">
-            <span>Table type</span>
-            <select className="select" value={f.layout} onChange={(e) => setLayout(e.target.value as ReportLayout)}>
-              {REPORT_LAYOUTS.map((x) => (
-                <option key={x}>{x}</option>
-              ))}
-            </select>
-          </label>
-          <div className="gov-2col">
-            <label className="field">
-              <span>First column header</span>
-              <input className="input" value={f.lineHeader} onChange={(e) => up({ lineHeader: e.target.value })} placeholder={help.lineHeader} />
-            </label>
-            <label className="field">
-              <span>{firstLabel}</span>
-              <input className="input" value={f.foundLabel} onChange={(e) => up({ foundLabel: e.target.value })} placeholder={firstPlaceholder} />
-            </label>
-          </div>
-          <label className="field">
-            <span>Report lines — one per row (leave empty for a single line)</span>
-            <textarea className="rb-textarea" value={f.lines} onChange={(e) => up({ lines: e.target.value })} placeholder={help.example.split('; ').join('\n') || 'e.g. Deep Category'} />
-          </label>
-          <div className="gov-2col">
-            <label className="field">
-              <span>Numbers in a week / month are</span>
-              <select className="select" value={f.valueMode} onChange={(e) => up({ valueMode: e.target.value as 'Sum' | 'Latest' })}>
-                <option value="Sum">Sum of the entries (daily work)</option>
-                <option value="Latest">Latest entry (running total)</option>
-              </select>
-            </label>
-            <label className="field" style={{ justifyContent: 'flex-end' }}>
-              <span>&nbsp;</span>
-              <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input type="checkbox" checked={f.showInReport} onChange={(e) => up({ showInReport: e.target.checked })} />
-                Show in the governance report
-              </label>
-            </label>
-          </div>
-          <label className="field">
-            <span>Report note (shown under the block)</span>
-            <textarea
-              className="rb-textarea"
-              style={{ minHeight: 60 }}
-              value={f.reportNote}
-              onChange={(e) => up({ reportNote: e.target.value })}
-              placeholder="e.g. Product Name: title length/tag cleanup. Image Check: background & low-res cleanup."
-            />
-          </label>
-          {err && <Banner tone="bad">{err}</Banner>}
-        </div>
-        <div className="gov-form-foot">
-          <button type="button" className="btn" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? 'Saving to Google Sheets…' : initial ? 'Save changes' : 'Create project'}
-          </button>
-        </div>
-      </form>
-    </>
-  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -364,6 +138,257 @@ function ProgressForm({ project, onSave }: { project: Project; onSave: (rows: Ro
   );
 }
 
+/** Log progress for a "Custom table" project: one input per row × number column, saved as the Values JSON. */
+function CustomProgressForm({ project, onSave }: { project: Project; onSave: (rows: Row[]) => Promise<void> }) {
+  const { who } = useGovernance();
+  const people = usePeople();
+  const choices = project.assignees.length || project.pocs.length ? [...new Set([...project.assignees, ...project.pocs])] : people;
+  const team = project.rowsFrom === 'Team';
+  const rows = projectRows(project);
+  const cols = numberColumns(project);
+  const blank = () => Object.fromEntries(rows.map((r) => [r, {} as Record<string, string>]));
+  const [f, setF] = useState({ date: today(), person: choices.includes(who) ? who : choices[0] ?? '', note: '' });
+  const [vals, setVals] = useState<Record<string, Record<string, string>>>(blank);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: 'bad' | 'warn'; text: string } | null>(null);
+  const n = (s: string) => Number(s.replace(/,/g, ''));
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const all = rows.flatMap((r) => cols.map((c) => vals[r]?.[c.label] ?? ''));
+    if (all.some((v) => v.trim() && !/^\d[\d,]*$/.test(v.trim()))) return setMsg({ tone: 'bad', text: 'Numbers must be whole numbers.' });
+    if (all.every((v) => !v.trim())) return setMsg({ tone: 'bad', text: 'Enter at least one number.' });
+    if (!team && !f.person) return setMsg({ tone: 'bad', text: 'Choose who did the work.' });
+    const out: Row[] = rows
+      .filter((r) => cols.some((c) => (vals[r]?.[c.label] ?? '').trim()))
+      .map((r) => {
+        const values = Object.fromEntries(cols.filter((c) => (vals[r]?.[c.label] ?? '').trim()).map((c) => [c.label, n(vals[r][c.label].trim())]));
+        return {
+          'Log ID': newId('LOG'),
+          'Project ID': project.id,
+          Date: f.date,
+          Person: team ? r : f.person,
+          Line: r,
+          Reviewed: 0,
+          Found: 0,
+          Updated: 0,
+          Values: JSON.stringify(values),
+          Note: f.note.trim(),
+        };
+      });
+    setBusy(true);
+    setMsg(null);
+    try {
+      await onSave(out);
+      setVals(blank());
+      setF({ ...f, note: '' });
+      setMsg({ tone: 'warn', text: `Saved ${out.length} entr${out.length === 1 ? 'y' : 'ies'} to the Governance sheet.` });
+    } catch (e2) {
+      setMsg({ tone: 'bad', text: (e2 as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="gov-log-form">
+      <div className="gov-log-grid">
+        <label className="field">
+          <span>Date</span>
+          <input type="date" className="input" value={f.date} max={today()} onChange={(e) => setF({ ...f, date: e.target.value })} />
+        </label>
+        {!team && (
+          <label className="field">
+            <span>Worked by</span>
+            <select className="select" value={f.person} onChange={(e) => setF({ ...f, person: e.target.value })}>
+              {choices.map((p) => (
+                <option key={p}>{p}</option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+      <div className="table-wrap flush">
+        <table className="data gov-log-table">
+          <thead>
+            <tr>
+              <th>{project.lineHeader}</th>
+              {cols.map((c) => (
+                <th key={c.label} className="n">
+                  {c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r || '_'}>
+                <td>{r || project.name}</td>
+                {cols.map((c) => (
+                  <td key={c.label} className="n">
+                    <input
+                      className="input"
+                      inputMode="numeric"
+                      aria-label={`${r || project.name} ${c.label}`}
+                      value={vals[r]?.[c.label] ?? ''}
+                      onChange={(e) => setVals({ ...vals, [r]: { ...vals[r], [c.label]: e.target.value } })}
+                      placeholder="0"
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {project.valueMode === 'Latest' && <div className="muted" style={{ fontSize: 12 }}>This project uses running totals: enter the current total, not today's increase.</div>}
+      <label className="field">
+        <span>Note</span>
+        <input className="input" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder="Optional" />
+      </label>
+      <div className="rb-actions" style={{ alignItems: 'center' }}>
+        <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
+          {busy ? 'Saving…' : 'Add progress'}
+        </button>
+        {msg && <span style={{ color: msg.tone === 'bad' ? 'var(--bad)' : 'var(--good)', fontSize: 13 }}>{msg.text}</span>}
+      </div>
+    </form>
+  );
+}
+
+/** Card numbers for a "Custom table" project: the column totals (and progress to the target). */
+function CustomCardNums({ p, logs }: { p: Project; logs: ProgressLog[] }) {
+  const cs = useMemo(() => customStats(p, logs), [p, logs]);
+  const last = p.columns[p.columns.length - 1];
+  const main = last ? cs.totals[last.label] ?? 0 : 0;
+  const pct = p.target ? Math.min(100, (main / p.target) * 100) : null;
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginTop: 10 }}>
+        <span>
+          {last?.label ?? 'Total'} <b className="num">{fmtNum(main)}</b>
+          {p.target ? ` / ${fmtNum(p.target)}` : ''}
+        </span>
+        <b className="num">{pct !== null ? fmtPct(pct, 0) : `${cs.entries} logs`}</b>
+      </div>
+      {pct !== null && <Meter pct={pct} label={`${p.name} progress`} />}
+      <div className="gov-card-nums">
+        {p.columns.slice(0, -1).slice(0, 4).map((c) => (
+          <span key={c.label}>
+            {c.label}
+            <b className="num">{fmtNum(cs.totals[c.label] ?? 0)}</b>
+          </span>
+        ))}
+        <span>
+          Rows<b className="num">{cs.rows.length}</b>
+        </span>
+      </div>
+    </>
+  );
+}
+
+/** Drawer body for a "Custom table" project. */
+function CustomProjectBody({ project, stats, onDelete }: { project: Project; stats: ProjectStats; onDelete: (id: string, label: string) => void }) {
+  const { writeUrl, logProgress } = useGovernance();
+  const cs = useMemo(() => customStats(project, stats.logs), [project, stats.logs]);
+  const nums = numberColumns(project);
+  return (
+    <>
+      <Card title="Table so far" subtitle={`${project.valueMode === 'Latest' ? 'Latest entry per row' : 'All entries added up'} · ${cs.entries} entries`} bodyClassName="">
+        <div className="table-wrap flush">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>{project.lineHeader}</th>
+                {project.columns.map((c) => (
+                  <th className="n" key={c.label}>
+                    {c.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {cs.rows.map((r) => (
+                <tr key={r.line || '_'}>
+                  <td>{r.line || project.name}</td>
+                  {project.columns.map((c) => (
+                    <td className="n" key={c.label}>
+                      {fmtNum(r.values[c.label] ?? 0)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {project.totalLabel && cs.rows.length > 1 && (
+                <tr style={{ fontWeight: 700 }}>
+                  <td>{project.totalLabel}</td>
+                  {project.columns.map((c) => (
+                    <td className="n" key={c.label}>
+                      {fmtNum(cs.totals[c.label] ?? 0)}
+                    </td>
+                  ))}
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {writeUrl && (
+        <Card title="Log progress" subtitle="Daily / weekly numbers for this table">
+          <CustomProgressForm project={project} onSave={logProgress} />
+        </Card>
+      )}
+
+      <Card title="Progress history" subtitle={`${stats.logs.length} entries`} bodyClassName="">
+        {stats.logs.length === 0 ? (
+          <EmptyState small title="No progress logged yet" message="Use “Log progress” to add the first numbers." />
+        ) : (
+          <div className="table-wrap flush" style={{ maxHeight: 320 }}>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Person</th>
+                  <th>{project.lineHeader}</th>
+                  {nums.map((c) => (
+                    <th className="n" key={c.label}>
+                      {c.label}
+                    </th>
+                  ))}
+                  <th>Note</th>
+                  {writeUrl && <th />}
+                </tr>
+              </thead>
+              <tbody>
+                {[...stats.logs].reverse().map((l) => (
+                  <tr key={l.id} style={l.pending ? { opacity: 0.6 } : undefined}>
+                    <td>{l.date}</td>
+                    <td>{l.person}</td>
+                    <td>{l.line || '—'}</td>
+                    {nums.map((c) => (
+                      <td className="n" key={c.label}>
+                        {l.values[c.label] !== undefined ? fmtNum(l.values[c.label]) : ''}
+                      </td>
+                    ))}
+                    <td>{l.note ? <span className="cell-trunc" title={l.note}>{l.note}</span> : ''}</td>
+                    {writeUrl && (
+                      <td>
+                        <button type="button" className="icon-btn" title="Delete this entry" aria-label="Delete entry" onClick={() => onDelete(l.id, `${l.date} entry by ${l.person}`)}>
+                          <Icon name="x" size={14} />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </>
+  );
+}
+
 function ProjectDrawer({ project, stats, onClose, onEdit }: { project: Project; stats: ProjectStats; onClose: () => void; onEdit: () => void }) {
   const { writeUrl, updateProject, logProgress, deleteLog, adhoc } = useGovernance();
   const [err, setErr] = useState<string | null>(null);
@@ -446,6 +471,21 @@ function ProjectDrawer({ project, stats, onClose, onEdit }: { project: Project; 
             <div className="roles">{project.assignees.length ? project.assignees.map((a) => <span className="badge info" key={a}>{a}</span>) : <span className="muted">Nobody assigned yet</span>}</div>
           </div>
 
+          {project.layout === 'Custom table' ? (
+            <CustomProjectBody
+              project={project}
+              stats={stats}
+              onDelete={async (id, label) => {
+                if (!window.confirm(`Delete the ${label}?`)) return;
+                try {
+                  await deleteLog(id);
+                } catch (e) {
+                  setErr((e as Error).message);
+                }
+              }}
+            />
+          ) : (
+            <>
           <dl className="kv">
             <dt>Total SKUs</dt>
             <dd>{fmtNum(project.totalSkus)}</dd>
@@ -611,6 +651,9 @@ function ProjectDrawer({ project, stats, onClose, onEdit }: { project: Project; 
             )}
           </Card>
 
+            </>
+          )}
+
           {related.length > 0 && (
             <Card title="Related Ad-Hoc log rows" subtitle={`Rows in the Main tab with Project Name “${project.name}” (shown for reference, not added to the totals)`}>
               <div className="stats">
@@ -747,6 +790,10 @@ export default function GovProjectsPage() {
                 <div className="muted" style={{ fontSize: 12.5 }}>
                   {p.workType || 'REVAMP'} · POC {p.poc || '—'}
                 </div>
+                {p.layout === 'Custom table' ? (
+                  <CustomCardNums p={p} logs={logs} />
+                ) : (
+                  <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginTop: 10 }}>
                   <span>
                     {metricLabels(p)[0].label} <b className="num">{fmtNum(s.reviewed)}</b>
@@ -775,6 +822,8 @@ export default function GovProjectsPage() {
                     </span>
                   )}
                 </div>
+                  </>
+                )}
                 <div className="gov-card-foot">
                   <span className="roles">
                     {p.assignees.slice(0, 4).map((a) => (
@@ -798,6 +847,7 @@ export default function GovProjectsPage() {
       {form && (
         <ProjectForm
           initial={form.edit}
+          people={people}
           onClose={() => setForm(null)}
           onSave={async (row) => {
             if (form.edit) await g.updateProject(form.edit.id, row);

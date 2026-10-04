@@ -16,7 +16,8 @@
  */
 import { C } from '../config/dashboard.config';
 import { BACKLOG_EXCLUDED_STATUSES, PEOPLE_DEFAULTS, type TeamId } from '../config/people.config';
-import type { Dataset, FlatTable } from '../types';
+import type { Dataset, ExtraTable, FlatTable } from '../types';
+import { pendingQcNow, retailByPerson } from './extraSources';
 import { fmtNum } from './format';
 import { parseDate, text, toNumber } from './parse';
 import type { Period } from './periods';
@@ -50,6 +51,8 @@ export interface ReportRow {
 
 export interface ReportSection {
   team: TeamId;
+  /** Distinguishes two sections of the same team (e.g. Retail uploads). Defaults to the team. */
+  id?: string;
   title: string;
   columns: { key: string; label: string }[];
   deltaKey: string;
@@ -62,6 +65,8 @@ export interface ReportSection {
 
 export interface GlanceItem {
   label: string;
+  /** Shown instead of "prev → cur" (e.g. a value that only exists for today). */
+  text?: string;
   prev: number | null;
   cur: number | null;
   /** When true, a decrease is good (e.g. backlog). */
@@ -169,9 +174,14 @@ export interface ReportInput {
   cur: Period;
   teams: TeamId[];
   people: Record<string, string[]>; // team -> sheet names
+  /** Retail [Picks] Upload Request sheet (optional). */
+  retail?: ExtraTable | null;
+  includeRetail?: boolean;
+  /** Admin Portal Pending QC sheet (optional). */
+  pendingQc?: ExtraTable | null;
 }
 
-export function buildIndividualReport({ ds, sellerQc, roster, prev, cur, teams, people }: ReportInput): IndividualReport {
+export function buildIndividualReport({ ds, sellerQc, roster, prev, cur, teams, people, retail, includeRetail = true, pendingQc }: ReportInput): IndividualReport {
   const sections: ReportSection[] = [];
   const has = (c: string) => ds.has(c);
 
@@ -186,6 +196,24 @@ export function buildIndividualReport({ ds, sellerQc, roster, prev, cur, teams, 
       )
     : null;
   if (production) sections.push(production);
+
+  // Retail [Picks] uploads (separate sheet): sellers = rows, SKUs = uploaded SKU count, by upload date.
+  let retailSec: ReportSection | null = null;
+  if (teams.includes('Production') && includeRetail) {
+    const a = retailByPerson(retail, prev);
+    const b = retailByPerson(retail, cur);
+    if (a && b && (a.size || b.size)) {
+      const names = [...new Map([...a.values(), ...b.values()].map((x) => [x.name.toLowerCase(), x.name])).values()];
+      retailSec = buildSection(
+        'Production', 'RETAIL PICKS · Upload',
+        [{ key: 'sellers', label: 'Slr' }, { key: 'skus', label: 'SKUs' }],
+        'skus', 'Δ SKUs', names, roster,
+        new Map([...a].map(([k, v]) => [k, { sellers: v.sellers, skus: v.skus }])), new Map([...b].map(([k, v]) => [k, { sellers: v.sellers, skus: v.skus }])), [],
+      );
+      retailSec.id = 'Retail';
+      sections.push(retailSec);
+    }
+  }
 
   const visFields = {
     sellers: () => 1,
@@ -239,7 +267,13 @@ export function buildIndividualReport({ ds, sellerQc, roster, prev, cur, teams, 
     glance.push({ label: 'SKUs Uploaded', prev: production.total.prev.skus, cur: production.total.cur.skus });
     glance.push({ label: 'Upload Backlog', prev: backlog.prev, cur: backlog.cur, lowerIsBetter: true });
   }
+  if (retailSec) glance.push({ label: 'Retail SKUs Uploaded', prev: retailSec.total.prev.skus, cur: retailSec.total.cur.skus });
   if (qc) glance.push({ label: 'Total QC Done', prev: qc.total.prev.total, cur: qc.total.cur.total });
+  const pq = pendingQcNow(pendingQc);
+  if (pq) {
+    const parts = [pq.skus !== null ? `${fmtNum(pq.skus)} SKUs` : null, pq.sellers !== null ? `${fmtNum(pq.sellers)} sellers` : `${fmtNum(pq.rows)} rows`].filter(Boolean);
+    glance.push({ label: 'Pending QC (Admin Portal, now)', prev: null, cur: pq.skus ?? pq.rows, text: parts.join(' · '), lowerIsBetter: true });
+  }
   if (visual) {
     glance.push({ label: 'Total Visual Images', prev: visual.total.prev.total, cur: visual.total.cur.total });
     glance.push({ label: 'AI Edited Images', prev: visual.total.prev.ai, cur: visual.total.cur.ai });

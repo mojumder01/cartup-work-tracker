@@ -3,7 +3,7 @@
  * the "Product Governance — Week 37 vs Week 38" template. Shared by the on-screen
  * slide, the Excel export and the editable PowerPoint export.
  */
-import { groupAdhoc, metricLabels, projectStats, type AdhocTask, type Project, type ProgressLog } from './governance';
+import { customStats, groupAdhoc, metricLabels, projectStats, type AdhocTask, type Project, type ProgressLog } from './governance';
 import type { Period } from './periods';
 
 export type Cell = string | number | null;
@@ -59,7 +59,90 @@ function blockNote(p: Project, logs: ProgressLog[], cur: Period): string | undef
   return all.length ? all.join('\n') : undefined;
 }
 
+/** Custom table block: compare weeks (prev | cur | Δ) or this period only (+ total row, target in the title). */
+function customBlock(p: Project, logs: ProgressLog[], prev: Period, cur: Period): ReportBlock {
+  const a = customStats(p, logs, [prev.start, prev.end]);
+  const b = customStats(p, logs, [cur.start, cur.end]);
+  const cols = p.columns.length ? p.columns : [{ label: 'Value', kind: 'number' as const }];
+  const poc = p.pocs.length ? ` · POC: ${p.pocs.join(' / ')}` : '';
+  const target = p.target ? ` (Target: ${p.target.toLocaleString('en-US')})` : '';
+  const tag = isNewIn(p, logs, cur) ? 'NEW' : undefined;
+  const name = (n: string) => n || p.name;
+  if (p.compare === 'This period') {
+    const rows = b.rows.map((r) => [name(r.line), ...cols.map((c) => (r.entries || c.kind === 'total' ? r.values[c.label] ?? 0 : null))]);
+    return {
+      id: p.id,
+      title: `${p.name}${target} (${cur.short})${poc}`,
+      tag,
+      head: [p.lineHeader, ...cols.map((c) => c.label)],
+      rows,
+      total: p.totalLabel ? [p.totalLabel, ...cols.map((c) => b.totals[c.label] ?? 0)] : undefined,
+      deltaCol: false,
+      note: blockNote(p, logs, cur),
+    };
+  }
+  const single = cols.length === 1;
+  const last = cols[cols.length - 1].label;
+  const head = [
+    p.lineHeader,
+    ...cols.map((c) => (single ? prev.short : `${prev.short}\n${c.label}`)),
+    ...cols.map((c) => (single ? cur.short : `${cur.short}\n${c.label}`)),
+    ...(p.showDelta ? [single ? 'Δ' : `Δ ${last}`] : []),
+  ];
+  const byLine = (s: typeof a, l: string) => s.rows.find((r) => r.line === l);
+  const lines = [...new Set([...a.rows.map((r) => r.line), ...b.rows.map((r) => r.line)])];
+  const v = (r: ReturnType<typeof byLine>, c: string) => (r && r.entries ? r.values[c] ?? 0 : null);
+  const rows: Cell[][] = lines.map((l) => {
+    const x = byLine(a, l);
+    const y = byLine(b, l);
+    const d: Cell = !x?.entries && !y?.entries ? null : !x?.entries ? 'New' : (v(y, last) ?? 0) - (v(x, last) ?? 0);
+    return [name(l), ...cols.map((c) => v(x, c.label)), ...cols.map((c) => v(y, c.label)), ...(p.showDelta ? [d] : [])];
+  });
+  return {
+    id: p.id,
+    title: `${p.name}${target}${poc}`,
+    tag,
+    head,
+    rows,
+    total: p.totalLabel
+      ? [p.totalLabel, ...cols.map((c) => a.totals[c.label] ?? 0), ...cols.map((c) => b.totals[c.label] ?? 0), ...(p.showDelta ? [(b.totals[last] ?? 0) - (a.totals[last] ?? 0)] : [])]
+      : undefined,
+    deltaCol: p.showDelta,
+    note: blockNote(p, logs, cur),
+  };
+}
+
+/** The project's "At a Glance" line, if it has one. */
+export function projectGlance(p: Project, logs: ProgressLog[], prev: Period, cur: Period): { label: string; prev: number | null; cur: number | null; text?: string } | null {
+  if (!p.glance) return null;
+  const pick = (s: Record<string, number>, c: string) => s[c] ?? 0;
+  let a: Record<string, number>;
+  let b: Record<string, number>;
+  if (p.layout === 'Custom table') {
+    a = customStats(p, logs, [prev.start, prev.end]).totals;
+    b = customStats(p, logs, [cur.start, cur.end]).totals;
+  } else {
+    const x = projectStats(p, logs, [prev.start, prev.end]);
+    const y = projectStats(p, logs, [cur.start, cur.end]);
+    const map = (s: typeof x) => Object.fromEntries(metricLabels(p).map((m) => [m.label, s[m.key]]));
+    a = map(x);
+    b = map(y);
+  }
+  const col = p.glance.col || Object.keys(b)[0] || '';
+  const extra = p.glance.extra.filter((c) => c !== col).map((c) => `${fmtN(pick(b, c))} ${c}`);
+  const tgt = p.target ? ` of ${fmtN(p.target)}` : '';
+  if (p.layout === 'Custom table' && p.compare === 'This period') {
+    return { label: p.glance.label, prev: null, cur: pick(b, col), text: `${fmtN(pick(b, col))}${tgt} ${col}${extra.length ? ` · ${extra.join(' · ')}` : ''}` };
+  }
+  return { label: p.glance.label, prev: pick(a, col), cur: pick(b, col), ...(extra.length ? { text: `${fmtN(pick(a, col))} → ${fmtN(pick(b, col))} · ${extra.join(' · ')}` } : {}) };
+}
+const fmtN = (n: number) => n.toLocaleString('en-US');
+
+/** Projects that belong in a report. */
+export const inReport = (p: Project, report: 'Governance' | 'Individual Summary') => p.reports === 'Both' || p.reports === report;
+
 export function projectBlock(p: Project, logs: ProgressLog[], prev: Period, cur: Period): ReportBlock {
+  if (p.layout === 'Custom table') return customBlock(p, logs, prev, cur);
   const a = projectStats(p, logs, [prev.start, prev.end]);
   const b = projectStats(p, logs, [cur.start, cur.end]);
   const labels = metricLabels(p);

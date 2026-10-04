@@ -159,8 +159,20 @@ export function buildEmployeeDetail(input: DetailInput): { name: string; rows: E
   const names = new Map((input.projects ?? []).map((p) => [p.id, p.name]));
   const logs = (input.logs ?? []).filter((l) => l.person.toLowerCase() === key && periodOf(l.date ? new Date(`${l.date}T00:00:00`).getTime() : l.timestamp));
   if (logs.length) {
-    const rows: ExportRow[] = [['Period', 'Date', 'Project', 'Line', 'Reviewed / Working / Count', 'Found', 'Updated', 'Note']];
-    logs.forEach((l) => rows.push([periodOf(new Date(`${l.date}T00:00:00`).getTime()), l.date, names.get(l.projectId) ?? l.projectId, l.line, l.reviewed, l.found, l.updated, l.note]));
+    const rows: ExportRow[] = [['Period', 'Date', 'Project', 'Line', 'Reviewed / Working / Count', 'Found', 'Updated', 'Custom table values', 'Note']];
+    logs.forEach((l) =>
+      rows.push([
+        periodOf(new Date(`${l.date}T00:00:00`).getTime()),
+        l.date,
+        names.get(l.projectId) ?? l.projectId,
+        l.line,
+        l.reviewed,
+        l.found,
+        l.updated,
+        Object.entries(l.values).map(([k, v]) => `${k}: ${v}`).join('; '),
+        l.note,
+      ]),
+    );
     sheets.push({ name: 'REVAMP progress', rows });
   }
   return sheets;

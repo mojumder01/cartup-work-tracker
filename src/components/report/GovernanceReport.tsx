@@ -2,7 +2,8 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useGovernance } from '../../hooks/useGovernance';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { projectStats, type Project } from '../../utils/governance';
-import { adhocBlock, defaultIncluded, isNewIn, projectBlock, type Cell, type ReportBlock } from '../../utils/governanceReport';
+import { Block } from './ReportBlock';
+import { adhocBlock, defaultIncluded, inReport, isNewIn, projectBlock, projectGlance, type Cell, type ReportBlock } from '../../utils/governanceReport';
 import { comparisonPeriod, comparisonTitle, listPeriods, periodContaining, type CompareMode, type Period, type PeriodType } from '../../utils/periods';
 import { fmtDate, fmtNum } from '../../utils/format';
 import { exportXlsx, stamp, type ExportRow } from '../../utils/export';
@@ -27,75 +28,6 @@ const DEFAULTS: Settings = { periodType: 'week', periodStart: null, compare: 'pr
 
 /** Manual text edits for one block (title / note), kept in this browser. */
 type BlockEdits = Record<string, { title?: string; note?: string; newTag?: boolean }>;
-
-const fmtCell = (v: Cell) => (v === null || v === '' ? '—' : typeof v === 'number' ? fmtNum(v) : v);
-
-function DeltaCell({ v }: { v: Cell }) {
-  if (v === 'New') return <b className="rs-new">New</b>;
-  if (typeof v !== 'number') return <span className="rs-muted">{fmtCell(v)}</span>;
-  return <b className={v > 0 ? 'rs-up' : v < 0 ? 'rs-down' : ''}>{v > 0 ? '+' : ''}{fmtNum(v)}</b>;
-}
-
-function Block({ b }: { b: ReportBlock }) {
-  const n = b.head.length;
-  return (
-    <div className="rs-block">
-      <div className="rs-block-title">
-        {b.title}
-        {b.tag && <span className="rs-tag">{b.tag}</span>}
-      </div>
-      <table className={`rs-table cols-${n}`}>
-        <thead>
-          <tr>
-            {b.head.map((h, i) => (
-              <th key={i} className={i === 0 ? 'rs-name' : undefined} style={{ whiteSpace: 'pre-line' }}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {b.rows.length === 0 && (
-            <tr>
-              <td colSpan={n} className="rs-muted">
-                No entries in these periods
-              </td>
-            </tr>
-          )}
-          {b.rows.map((r, ri) => (
-            <tr key={ri}>
-              {r.map((v, i) =>
-                i === 0 ? (
-                  <td key={i} className="rs-name">
-                    {fmtCell(v)}
-                  </td>
-                ) : (
-                  <td key={i}>{b.deltaCol && i === n - 1 ? <DeltaCell v={v} /> : fmtCell(v)}</td>
-                ),
-              )}
-            </tr>
-          ))}
-        </tbody>
-        {b.total && (
-          <tfoot>
-            <tr>
-              {b.total.map((v, i) =>
-                i === 0 ? (
-                  <td key={i} className="rs-name">
-                    {fmtCell(v)}
-                  </td>
-                ) : (
-                  <td key={i}>{b.deltaCol && i === n - 1 ? <DeltaCell v={v} /> : fmtCell(v)}</td>
-                ),
-              )}
-            </tr>
-          </tfoot>
-        )}
-      </table>
-      {b.note && <div className="rs-block-note">{b.note}</div>}
-    </div>
-  );
-}
 
 const pctText = (a: number, b: number) => (a ? ` (${b >= a ? '+' : ''}${(((b - a) / a) * 100).toFixed(1)}%)` : '');
 
@@ -123,6 +55,9 @@ export function GovernanceReport() {
   const prev = useMemo(() => comparisonPeriod(cur, s.compare), [cur, s.compare]);
   const included = (p: Project) => s.pick[p.id] ?? defaultIncluded(p, logs, prev, cur);
 
+  // Projects set to appear in this report ("Governance" or "Both").
+  const mine = useMemo(() => projects.filter((p) => inReport(p, 'Governance')), [projects]);
+
   const model = useMemo(() => {
     const inP = (ms: number | null, p: Period) => ms !== null && ms >= p.start && ms < p.end;
     const tasksPrev = (adhoc?.tasks ?? []).filter((t) => inP(t.date, prev));
@@ -131,16 +66,16 @@ export function GovernanceReport() {
     const byPerson = adhocBlock('adhoc-person', 'Ad-Hoc Tasks by Person', 'Person', tasksPrev, tasksCur, (t) => t.person, prev, cur);
 
     // Oldest project first, like the template.
-    const chosen = [...projects].reverse().filter((p) => s.pick[p.id] ?? defaultIncluded(p, logs, prev, cur));
+    const chosen = mine.slice().reverse().filter((p) => s.pick[p.id] ?? defaultIncluded(p, logs, prev, cur));
     const projBlocks = chosen.map((p) => projectBlock(p, logs, prev, cur));
     const statsPrev = chosen.map((p) => projectStats(p, logs, [prev.start, prev.end]));
     const statsCur = chosen.map((p) => projectStats(p, logs, [cur.start, cur.end]));
-    const flowing = chosen.map((p, i) => ({ p, a: statsPrev[i], b: statsCur[i] })).filter((x) => x.p.layout !== 'Count' && x.p.layout !== 'Status breakdown');
+    const flowing = chosen.map((p, i) => ({ p, a: statsPrev[i], b: statsCur[i] })).filter((x) => x.p.layout !== 'Count' && x.p.layout !== 'Status breakdown' && x.p.layout !== 'Custom table');
     const worked = [flowing.reduce((z, x) => z + x.a.reviewed, 0), flowing.reduce((z, x) => z + x.b.reviewed, 0)];
     const updated = [flowing.reduce((z, x) => z + x.a.updated, 0), flowing.reduce((z, x) => z + x.b.updated, 0)];
 
     const [tp, tc] = [tasksPrev.reduce((z, t) => z + t.products, 0), tasksCur.reduce((z, t) => z + t.products, 0)];
-    const glance = [
+    const glance: { label: string; prev: number | null; cur: number | null; text?: string }[] = [
       { label: 'REVAMP SKUs Worked', prev: worked[0], cur: worked[1] },
       { label: 'REVAMP SKUs Updated', prev: updated[0], cur: updated[1] },
       { label: 'Ad-Hoc Tasks', prev: tasksPrev.length, cur: tasksCur.length },
@@ -148,12 +83,17 @@ export function GovernanceReport() {
       { label: 'Shops Covered', prev: tasksPrev.reduce((z, t) => z + t.shops, 0), cur: tasksCur.reduce((z, t) => z + t.shops, 0) },
       { label: 'Images Handled', prev: tasksPrev.reduce((z, t) => z + t.images, 0), cur: tasksCur.reduce((z, t) => z + t.images, 0) },
     ];
+    // Projects with their own "At a Glance" line.
+    chosen.forEach((p) => {
+      const g = projectGlance(p, logs, prev, cur);
+      if (g) glance.push(g);
+    });
 
     const notes: string[] = [];
     chosen.forEach((p, i) => {
       const a = statsPrev[i];
       const b = statsCur[i];
-      if (p.layout === 'Status breakdown') return;
+      if (p.layout === 'Status breakdown' || p.layout === 'Custom table') return;
       if (a.logs.length && b.logs.length && a.reviewed === b.reviewed && a.updated === b.updated && a.found === b.found)
         notes.push(`${p.name}: no change vs ${prev.label}${p.pocs.length ? ` — worth checking with ${p.pocs.join(' / ')}` : ''}.`);
       else if (a.logs.length && !b.logs.length && !/complete|cancel/i.test(p.status)) notes.push(`${p.name}: nothing logged in ${cur.label}.`);
@@ -168,7 +108,7 @@ export function GovernanceReport() {
       ? `Our revamp tasks for ${done.join(', ')} have been completed. ${chosen.length} REVAMP project(s) reported for ${cur.label}.`
       : `${chosen.length} REVAMP project(s) reported for ${cur.label}; Governance handled ${fmtNum(tc)} SKUs in ${fmtNum(tasksCur.length)} Ad-Hoc tasks (${fmtNum(tp)} in ${prev.label}).`;
     return { byType, byPerson, projBlocks, glance, notes, summary };
-  }, [adhoc, projects, logs, prev, cur, s.pick, s.markNew]);
+  }, [adhoc, projects, mine, logs, prev, cur, s.pick, s.markNew]);
 
   const blocks: ReportBlock[] = useMemo(() => {
     const list = [...model.projBlocks];
@@ -287,9 +227,9 @@ export function GovernanceReport() {
 
           <div className="rb-group">
             <span className="rb-label">Blocks on the slide</span>
-            {projects.length === 0 && <span className="muted" style={{ fontSize: 12.5 }}>No REVAMP projects yet — create them on the REVAMP Projects page.</span>}
+            {mine.length === 0 && <span className="muted" style={{ fontSize: 12.5 }}>No REVAMP projects for this report yet — create them on the REVAMP Projects page.</span>}
             <div className="rb-checks" style={{ maxHeight: 240 }}>
-              {projects.map((p) => (
+              {mine.map((p) => (
                 <label key={p.id}>
                   <input type="checkbox" checked={included(p)} onChange={(e) => update({ pick: { ...s.pick, [p.id]: e.target.checked } })} />
                   <span style={{ flex: 1 }}>
@@ -467,12 +407,19 @@ export function GovernanceReport() {
                       </div>
                       <div className="rs-g-sub">At a Glance</div>
                       {model.glance.map((g) => {
+                        if (g.prev === null || g.cur === null)
+                          return (
+                            <div className="rs-g-item" key={g.label}>
+                              <div className="rs-g-label">{g.label}</div>
+                              <div className="rs-g-val">{g.text ?? fmtNum(g.cur)}</div>
+                            </div>
+                          );
                         const ch = g.prev ? ((g.cur - g.prev) / g.prev) * 100 : null;
                         return (
                           <div className="rs-g-item" key={g.label}>
                             <div className="rs-g-label">{g.label}</div>
                             <div className="rs-g-val">
-                              {fmtNum(g.prev)} → {fmtNum(g.cur)}{' '}
+                              {g.text ?? `${fmtNum(g.prev)} → ${fmtNum(g.cur)}`}{' '}
                               {ch !== null && g.cur !== g.prev && (
                                 <span className={g.cur > g.prev ? 'rs-g-good' : 'rs-g-bad'}>
                                   {g.cur > g.prev ? '▲' : '▼'} {ch > 0 ? '+' : ''}

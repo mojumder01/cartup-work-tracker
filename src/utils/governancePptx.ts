@@ -11,7 +11,7 @@ export interface PptxInput {
   summary: string;
   blocks: ReportBlock[];
   notes: string[];
-  glance: { title: string; items: { label: string; prev: number; cur: number }[]; footer: string } | null;
+  glance: { title: string; items: { label: string; prev: number | null; cur: number | null; text?: string }[]; footer: string } | null;
   footer: string;
 }
 
@@ -92,12 +92,13 @@ export async function downloadGovernancePptx(input: PptxInput): Promise<void> {
           { text: ' ', options: { fontSize: 6, breakLine: true } },
         ];
         for (const it of g.items) {
-          const ch = it.prev ? ((it.cur - it.prev) / it.prev) * 100 : null;
+          const both = it.prev !== null && it.cur !== null;
+          const ch = both && it.prev ? ((it.cur! - it.prev!) / it.prev!) * 100 : null;
           parts.push({ text: it.label, options: { fontSize: 10, color: 'F3DCE3', breakLine: true } });
-          parts.push({ text: `${fmt(it.prev)} → ${fmt(it.cur)}`, options: { fontSize: 13, bold: true } });
+          parts.push({ text: it.text ?? `${fmt(it.prev ?? 0)} → ${fmt(it.cur ?? 0)}`, options: { fontSize: it.text ? 11.5 : 13, bold: true } });
           parts.push({
-            text: ch === null || it.cur === it.prev ? (it.cur === it.prev ? '  • 0.0%' : '') : `  ${ch > 0 ? '▲ +' : '▼ '}${ch.toFixed(1)}%`,
-            options: { fontSize: 10, color: ch !== null && it.cur > it.prev ? '8FE3A8' : 'FFB4A8', breakLine: true },
+            text: !both ? '' : ch === null || it.cur === it.prev ? (it.cur === it.prev ? '  • 0.0%' : '') : `  ${ch > 0 ? '▲ +' : '▼ '}${ch.toFixed(1)}%`,
+            options: { fontSize: 10, color: ch !== null && it.cur! > it.prev! ? '8FE3A8' : 'FFB4A8', breakLine: true },
           });
           parts.push({ text: ' ', options: { fontSize: 5, breakLine: true } });
         }

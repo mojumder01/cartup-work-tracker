@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import codeGs from '../../apps-script/Code.gs?raw';
 import { useApp } from '../hooks/AppContext';
+import { detect, PENDING_QC_FIELDS, RETAIL_FIELDS } from '../utils/extraSources';
 import { readAppsScriptJson } from '../services/appsScriptResponse';
 import { isAppsScriptUrl, LOCAL_URL_KEY, localAppsScriptUrl } from '../hooks/useGovernance';
 import { BUILD } from '../utils/buildInfo';
@@ -95,6 +96,25 @@ export function ConnectionsCard() {
         { tab: 'Import - Retail Picks Upload…', use: 'Retail uploads (daily)', ok: !!data.performance?.retail },
       ],
     },
+    ...([
+      { key: 'retail', name: 'Retail [Picks] Upload Request', purpose: 'Retail uploads in the Individual Summary', fields: RETAIL_FIELDS },
+      { key: 'pendingQc', name: 'Admin Portal Pending QC', purpose: 'Pending QC in the Individual Summary', fields: PENDING_QC_FIELDS },
+    ] as const).map((x) => {
+      const t = data.extra?.[x.key] ?? null;
+      const m = detect(t, x.fields as Record<string, { label: string; names: string[] }>);
+      return {
+        name: t?.spreadsheetTitle || x.name,
+        purpose: `${x.purpose}${t ? ` · tab “${t.sheet}”, ${fmtNum(t.rows.length)} rows` : ''}`,
+        connected: !!t,
+        tabs: Object.entries(x.fields).map(([k, f]) => ({
+          tab: m[k] ?? f.names[0],
+          use: `${f.label} column${m[k] ? '' : ` (looked for: ${f.names.slice(0, 3).join(' / ')})`}`,
+          ok: !!m[k],
+          optional: k === 'status' || k === 'seller' || k === 'date',
+        })),
+        hint: t ? `All columns: ${t.columns.join(' · ')}` : null,
+      };
+    }),
   ];
 
   const copy = async () => {
@@ -109,7 +129,7 @@ export function ConnectionsCard() {
 
   return (
     <>
-      <Card title="Connections" subtitle="3 Google Sheets feed this dashboard · tabs used for reports">
+      <Card title="Connections" subtitle={`${sheets.length} Google Sheets feed this dashboard · tabs and columns used for reports`}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {sheets.map((s, i) => (
             <div key={s.purpose}>
@@ -133,6 +153,17 @@ export function ConnectionsCard() {
                   ))}
                 </tbody>
               </table>
+              {i >= 3 && !s.connected && (
+                <p className="muted" style={{ fontSize: 12.5 }}>
+                  {data.warnings.find((w) => w.startsWith(s.name)) ?? 'Not read yet.'} To connect: open this Google Sheet → <b>Share</b> → add the service-account email
+                  (<code>…@….iam.gserviceaccount.com</code>) as <b>Viewer</b>, then click <b>Update data</b>.
+                </p>
+              )}
+              {'hint' in s && s.hint && (
+                <p className="muted" style={{ fontSize: 12, wordBreak: 'break-word' }}>
+                  {s.hint}
+                </p>
+              )}
               {i === 2 && !s.connected && (
                 <p className="muted" style={{ fontSize: 12.5 }}>
                   {perfWarning ? (

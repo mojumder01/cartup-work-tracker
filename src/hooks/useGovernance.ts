@@ -175,6 +175,14 @@ export function projectToRow(p: Project): Row {
     'Value Mode': p.valueMode,
     'Report Note': p.reportNote,
     'Show In Report': p.showInReport ? 'Yes' : 'No',
+    Columns: p.columns.length ? JSON.stringify(p.columns) : '',
+    Rows: p.rowsFrom,
+    Compare: p.compare,
+    'Show Delta': p.showDelta ? 'Yes' : 'No',
+    'Total Label': p.totalLabel,
+    Target: p.target,
+    Reports: p.reports,
+    Glance: p.glance ? JSON.stringify(p.glance) : '',
   };
 }
 

@@ -37,5 +37,20 @@
     "retailColumns": ["Timestamp", "Task Type", "Number of SKU", "Upload Status", "QC Status", "Uploaded SKU Count", "Upload Date", "QC Date", "Uploaded By", "QC By", "Visaul", "File Type"]
   },
   "$comment_expectedWorkColumns": "Used to locate the header row and to report missing columns. Missing columns are reported as warnings, never invented.",
-  "expectedWorkColumns": ["JOB ID", "Timestamp", "Task Type", "Shop Name", "Number of SKU", "Google drive link", "Vertical Head", "KAM", "Phone Number (KAM)", "Mail (KAM)", "L1 Category", "Note", "Email Address", "Seller Code", "File Type", "Seller Pick/Drop Status", "Seller Status (After QC)", "Status", "Uploaded by", "Image Source", "Visual editor", "Image Status", "Comments", "Image count", "Edited (By Hand)", "Uploaded SKU Count", "Rejected SKU Count", "QC By", "QC Status", "Approved QC Count", "Rejected QC Count", "QC approved date", "Upload date", "Image Delivered Date", "Weeks", "Month", "Vertical", "Upload Month", "QC Approved Month", "Image Delivered Month", "Visual", "Upload", "QC", "Edited (By AI)"]
+  "expectedWorkColumns": ["JOB ID", "Timestamp", "Task Type", "Shop Name", "Number of SKU", "Google drive link", "Vertical Head", "KAM", "Phone Number (KAM)", "Mail (KAM)", "L1 Category", "Note", "Email Address", "Seller Code", "File Type", "Seller Pick/Drop Status", "Seller Status (After QC)", "Status", "Uploaded by", "Image Source", "Visual editor", "Image Status", "Comments", "Image count", "Edited (By Hand)", "Uploaded SKU Count", "Rejected SKU Count", "QC By", "QC Status", "Approved QC Count", "Rejected QC Count", "QC approved date", "Upload date", "Image Delivered Date", "Weeks", "Month", "Vertical", "Upload Month", "QC Approved Month", "Image Delivered Month", "Visual", "Upload", "QC", "Edited (By AI)"],
+  "$comment_extraSources": "Extra sheets read by the sync (share each with the service account as Viewer). gid = the number after #gid= in the sheet link. Login/password/phone/mail columns are never published.",
+  "extraSources": {
+    "retail": {
+      "label": "Retail [Picks] Upload Request",
+      "spreadsheetId": "1YBrZQkge-3Ch-Zkzp10E9HAsOyfMiixQh-zdTb45FD4",
+      "gid": 1610558392,
+      "expectedColumns": ["Uploaded By", "Upload Date", "Uploaded SKU Count", "QC By", "QC Date"]
+    },
+    "pendingQc": {
+      "label": "Admin Portal Pending QC",
+      "spreadsheetId": "1eNTD6eB5JWbvgHzGhG-3Vn5hjw4xVt8tlDgbdNktb7I",
+      "gid": 0,
+      "expectedColumns": []
+    }
+  }
 }
