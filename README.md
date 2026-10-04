@@ -202,6 +202,7 @@ Options (remembered in your browser):
 - **Summary line & Key Notes** are generated from the numbers and can be edited before printing.
 - **Extra highlight boxes** for work that is not in the Work Sheet (Campaign Sticker, Keyword Tag Checking, Category Revamp…).
 - **Retail [Picks] uploads** are added to the **Production** table (sellers = rows, SKUs = column **F** of the Retail sheet, set by `extraSources.retail.columns.skus` in `config/data-source.json`). Names that differ slightly between sheets ("Iftkhar" / "Iftakhar") count as the same person. **Pending QC (Admin Portal, now)** is shown in At a Glance. Each appears only when its sheet is connected.
+- **Ad-Hoc Task tables:** tick people to add an "Ad-Hoc Task · <name>" table: SKUs (Product Count) per task type from the Governance Main tab, previous vs current period, with Δ and a total.
 - **Project tables:** REVAMP projects set to *Individual Summary* or *Both* appear as tables on this slide. Their "At a Glance" line (if set) is added to the panel. Tick which ones appear.
 - **Excel** downloads the same tables.
 
