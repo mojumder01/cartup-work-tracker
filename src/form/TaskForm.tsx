@@ -9,7 +9,7 @@ import { SearchPanel } from './SearchPanel';
 import { asDate, asMonth, scriptRead, scriptWrite, withAnyUrl, type WriteValue } from '../services/scriptApi';
 
 const JOB_COLUMNS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'KAM', 'Number of SKU', 'Status', 'Uploaded by', 'Uploaded SKU Count', 'Rejected SKU Count', 'Upload date', 'Upload Month', 'QC By', 'QC Status', 'Visual editor', 'Image Status', 'Image count', 'Comments'];
-import { isAppsScriptUrl, LOCAL_URL_KEY, localAppsScriptUrl } from '../services/appsScriptUrl';
+import { localAppsScriptUrl } from '../services/appsScriptUrl';
 
 type Cell = string | number | null;
 interface Job {
@@ -99,23 +99,12 @@ export function TaskForm() {
       });
   }, []);
 
-  const [localUrl, setLocalUrl] = useState(() => localAppsScriptUrl());
+  const [localUrl] = useState(() => localAppsScriptUrl());
   /** URL that answered a JOB ID check correctly (used for saving). */
   const [workingUrl, setWorkingUrl] = useState<string | null>(null);
   const candidates = [...new Set([localUrl, cfg?.appsScriptUrl].filter((u): u is string => !!u))];
   const url = workingUrl || candidates[0] || null;
-  const [editUrl, setEditUrl] = useState<string | null>(null);
-  const saveLocalUrl = (v: string | null) => {
-    try {
-      if (v) localStorage.setItem(LOCAL_URL_KEY, JSON.stringify(v.trim()));
-      else localStorage.removeItem(LOCAL_URL_KEY);
-    } catch {
-      /* ignore */
-    }
-    setLocalUrl(v ? v.trim() : null);
-    setWorkingUrl(null);
-    setEditUrl(null);
-  };
+
   const job = lookup?.found ? lookup.job! : null;
   const locked = new Set(lookup?.locked ?? []);
   const statuses = lookup?.statuses?.length ? lookup.statuses : STATUSES;
@@ -398,29 +387,6 @@ export function TaskForm() {
           </>
         )}
 
-        <div className="tf-hint" style={{ textAlign: 'center' }}>
-          {url ? (
-            <>
-              Connected to Web app …{url.slice(-26, -5)} ({workingUrl ? 'working' : localUrl === url ? 'saved in this browser' : 'default'}) ·{' '}
-            </>
-          ) : null}
-          <button type="button" className="rb-link" onClick={() => setEditUrl(editUrl === null ? localUrl ?? '' : null)}>
-            {editUrl === null ? 'Change connection' : 'Close'}
-          </button>
-          {editUrl !== null && (
-            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-              <input className="input" value={editUrl} onChange={(e) => setEditUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" />
-              <button type="button" className="btn btn-sm" disabled={!isAppsScriptUrl(editUrl)} onClick={() => saveLocalUrl(editUrl)}>
-                Use
-              </button>
-              {localUrl && (
-                <button type="button" className="btn btn-sm" onClick={() => saveLocalUrl(null)} title="Forget the URL saved in this browser and use the dashboard's">
-                  Remove saved
-                </button>
-              )}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
