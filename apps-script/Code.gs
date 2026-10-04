@@ -18,6 +18,9 @@
  * keeps your columns; columns are always matched by header name, so you may
  * re-order them or add your own. The "Main" Ad-Hoc tab is never modified.
  *
+ * Assign page (assign.html): team leads assign Uploaded by / Visual editor / QC By by JOB ID —
+ * existing assignees are never replaced unless they tick "replace".
+ *
  * Task update form (form.html): the same script also updates rows of the main
  * "Cartup Content Work Tracker" → "Work Sheet" tab by JOB ID (Status, Uploaded SKU
  * Count, Upload date, Upload Month, Comments) and records every change in a
@@ -32,7 +35,7 @@
  */
 
 /** Script version — shown by ?action=ping so the dashboard can tell an old deployment. */
-var SCRIPT_VERSION = '1.6.1';
+var SCRIPT_VERSION = '1.7.0';
 var SPREADSHEET_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
 /** Main "Cartup Content Work Tracker" sheet — the task update form writes to its Work Sheet tab. */
 var WORK_SPREADSHEET_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
@@ -42,8 +45,11 @@ var FORM_LOG_HEADERS = ['Timestamp', 'JOB ID', 'Submitted By', 'Field', 'Old Val
 /** Columns the task update form may change (nothing else is ever written). */
 var FORM_FIELDS = ['Status', 'Uploaded SKU Count', 'Upload date', 'Upload Month', 'Comments'];
 /** Columns shown when a JOB ID is checked (never login/password columns). */
-var JOB_VIEW = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'Number of SKU', 'Status', 'Uploaded by',
-  'Uploaded SKU Count', 'Rejected SKU Count', 'Upload date', 'Upload Month', 'Comments'];
+var JOB_VIEW = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'KAM', 'L1 Category', 'Number of SKU', 'Status',
+  'Uploaded by', 'Uploaded SKU Count', 'Rejected SKU Count', 'Upload date', 'Upload Month', 'QC By', 'QC Status',
+  'Visual editor', 'Image Status', 'Image count', 'Comments'];
+/** Columns a team lead may assign on assign.html. */
+var ASSIGN_FIELDS = ['Uploaded by', 'Visual editor', 'QC By'];
 var JOB_STATUSES = ['Done', 'Running', 'Pending', 'Rejected'];
 var PROJECTS_TAB = 'Projects';
 var PROGRESS_TAB = 'Project Progress';
@@ -182,6 +188,8 @@ function doGet(e) {
     }
     if (action === 'syncStatus') return json_(syncStatus_());
     if (action === 'job') return json_(lookupJob_(e.parameter.id));
+    if (action === 'search') return json_(searchJobs_(e.parameter.q));
+    if (action === 'workload') return json_(workload_());
     if (action !== 'list') throw new Error('Unknown action "' + action + '" — this Web app may be an older version of the script.');
     return json_({ ok: true, projects: readTab_(PROJECTS_TAB, PROJECT_HEADERS), progress: readTab_(PROGRESS_TAB, PROGRESS_HEADERS) });
   } catch (err) {
@@ -287,6 +295,7 @@ function doPost(e) {
 
     if (body.action === 'triggerSync') return json_(triggerSync_());
     if (body.action === 'submitTask') return json_(submitTask_(body, now));
+    if (body.action === 'assignTasks') return json_(assignTasks_(body, now));
 
     if (body.action === 'createProject') {
       var p = body.project || {};
@@ -399,9 +408,7 @@ function lookupJob_(idRaw) {
   var row = findJobRow_(w, id);
   if (row < 0) return { ok: true, found: false, id: id };
   var tz = Session.getScriptTimeZone();
-  var values = w.sh.getRange(row, 1, 1, w.sh.getLastColumn()).getValues()[0];
-  var job = {};
-  JOB_VIEW.forEach(function (h) { var c = w.col(h); job[h] = c ? cellOut_(values[c - 1], tz) : null; });
+  var job = jobView_(w, row, tz);
   var locked = FORM_FIELDS.filter(function (h) { var c = w.col(h); return !c || isFormula_(w, row, c); });
   return { ok: true, found: true, id: id, row: row, job: job, locked: locked, statuses: JOB_STATUSES };
 }
@@ -422,6 +429,10 @@ function submitTask_(body, now) {
   if (row < 0) throw new Error('JOB ID ' + id + ' is not in the Work Sheet.');
   var ch = body.changes || {};
   var tz = Session.getScriptTimeZone();
+  var stale = staleFields_(w, row, body.expect, Object.keys(ch).filter(function (k) { return FORM_FIELDS.indexOf(k) >= 0; }), tz);
+  if (stale.length) {
+    throw new Error('Not saved — this row was changed by someone else after you checked it (' + stale.join('; ') + '). Click Check again to load the latest values.');
+  }
   var written = [];
   var skipped = [];
   var log = [];
@@ -465,15 +476,152 @@ function submitTask_(body, now) {
     log.push([now, id, by, 'Uploaded by', '', by]);
   }
   if (log.length) {
-    var lg = w.sh.getParent().getSheetByName(FORM_LOG_TAB);
-    if (!lg) {
-      lg = w.sh.getParent().insertSheet(FORM_LOG_TAB);
-      lg.getRange(1, 1, 1, FORM_LOG_HEADERS.length).setValues([FORM_LOG_HEADERS]).setFontWeight('bold');
-      lg.setFrozenRows(1);
-    }
+    var lg = formLog_(w);
     lg.getRange(lg.getLastRow() + 1, 1, log.length, FORM_LOG_HEADERS.length).setValues(log);
+    CacheService.getScriptCache().remove('workload');
   }
   return { ok: true, id: id, written: written, skipped: skipped };
+}
+
+// ---- Freshness check, search, assigning ------------------------------------
+
+function norm_(v) {
+  return v === null || v === undefined ? '' : String(v).trim();
+}
+
+/** Fields whose current value differs from what the person saw when they checked the JOB ID. */
+function staleFields_(w, row, expect, fields, tz) {
+  if (!expect) return [];
+  var out = [];
+  fields.forEach(function (h) {
+    if (!Object.prototype.hasOwnProperty.call(expect, h)) return;
+    var c = w.col(h);
+    if (!c) return;
+    var now = norm_(cellOut_(w.sh.getRange(row, c).getValue(), tz));
+    if (now !== norm_(expect[h])) out.push(h + ' is now "' + (now || 'empty') + '"');
+  });
+  return out;
+}
+
+function jobView_(w, row, tz) {
+  var values = w.sh.getRange(row, 1, 1, w.sh.getLastColumn()).getValues()[0];
+  var job = {};
+  JOB_VIEW.forEach(function (h) { var c = w.col(h); job[h] = c ? cellOut_(values[c - 1], tz) : null; });
+  return job;
+}
+
+/** GET ?action=search&q=… → up to 20 rows matching a JOB ID, Seller Code or shop name (newest first). */
+function searchJobs_(qRaw) {
+  var q = String(qRaw || '').trim();
+  if (q.length < 2) throw new Error('Type at least 2 characters (JOB ID, Seller Code or shop name).');
+  if (q.length > 80) q = q.slice(0, 80);
+  var w = workSheet_();
+  var tz = Session.getScriptTimeZone();
+  var last = w.sh.getLastRow();
+  if (last <= w.headerRow) return { ok: true, results: [] };
+  var rows = {};
+  if (/^[A-Za-z0-9][A-Za-z0-9_-]{1,39}$/.test(q)) {
+    var exact = findJobRow_(w, q.toUpperCase());
+    if (exact > 0) return { ok: true, results: [jobView_(w, exact, tz)] };
+  }
+  ['Seller Code', 'Shop Name', 'JOB ID'].forEach(function (h) {
+    var c = w.col(h);
+    if (!c) return;
+    w.sh.getRange(w.headerRow + 1, c, last - w.headerRow, 1).createTextFinder(q).matchCase(false).matchEntireCell(false).findAll()
+      .forEach(function (r) { rows[r.getRow()] = true; });
+  });
+  var list = Object.keys(rows).map(Number).sort(function (a, b) { return b - a; });
+  return { ok: true, total: list.length, results: list.slice(0, 20).map(function (r) { return jobView_(w, r, tz); }) };
+}
+
+/** Open (unfinished) jobs per person, for the assign page. Cached for 2 minutes. */
+function workload_() {
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get('workload');
+  if (hit) return JSON.parse(hit);
+  var w = workSheet_();
+  var last = w.sh.getLastRow();
+  var out = { ok: true, upload: {}, visual: {}, qc: {} };
+  if (last > w.headerRow) {
+    var data = w.sh.getRange(w.headerRow + 1, 1, last - w.headerRow, w.sh.getLastColumn()).getValues();
+    var c = function (h) { return w.col(h) - 1; };
+    var add = function (m, name) { name = norm_(name); if (name) m[name] = (m[name] || 0) + 1; };
+    data.forEach(function (r) {
+      var status = norm_(r[c('Status')]);
+      if (status === 'Rejected') return;
+      if (c('Uploaded by') >= 0 && (status === 'Running' || status === 'Pending' || status === '')) add(out.upload, r[c('Uploaded by')]);
+      if (c('Visual editor') >= 0 && (norm_(r[c('Image Status')]) === '' || norm_(r[c('Image Status')]) === 'Pending')) add(out.visual, r[c('Visual editor')]);
+      if (c('QC By') >= 0 && /^(|QC Pending|QC Running)$/.test(norm_(r[c('QC Status')]))) add(out.qc, r[c('QC By')]);
+    });
+  }
+  cache.put('workload', JSON.stringify(out), 120);
+  return out;
+}
+
+/**
+ * POST { action:'assignTasks', by, jobs:[{ jobId, expect:{field: valueSeen} }], assign:{ 'Uploaded by'?, 'Visual editor'?, 'QC By'? },
+ *        setRunning?: true, overwrite?: false }
+ * Never replaces an existing assignee unless overwrite is true, and never writes over a value that changed after the check.
+ */
+function assignTasks_(body, now) {
+  var by = str_(body.by, 60);
+  if (!by) throw new Error('Choose your name.');
+  var jobs = [].concat(body.jobs || []);
+  if (!jobs.length || jobs.length > 50) throw new Error('Assign 1–50 JOB IDs at a time.');
+  var assign = {};
+  ASSIGN_FIELDS.forEach(function (h) { if (body.assign && norm_(body.assign[h])) assign[h] = str_(body.assign[h], 60); });
+  if (!Object.keys(assign).length) throw new Error('Choose at least one person to assign.');
+  var w = workSheet_();
+  var tz = Session.getScriptTimeZone();
+  var log = [];
+  var results = jobs.map(function (j) {
+    var id;
+    try { id = jobId_(j && j.jobId); } catch (e) { return { jobId: String(j && j.jobId), ok: false, reason: e.message }; }
+    var row = findJobRow_(w, id);
+    if (row < 0) return { jobId: id, ok: false, reason: 'not in the Work Sheet' };
+    var stale = staleFields_(w, row, j.expect, Object.keys(assign).concat(['Status']), tz);
+    if (stale.length) return { jobId: id, ok: false, reason: 'changed since you checked (' + stale.join('; ') + ') — check again' };
+    var written = [];
+    var skipped = [];
+    Object.keys(assign).forEach(function (h) {
+      var c = w.col(h);
+      if (!c) { skipped.push(h + ': column not found'); return; }
+      if (isFormula_(w, row, c)) { skipped.push(h + ': calculated by the sheet'); return; }
+      var cell = w.sh.getRange(row, c);
+      var cur = norm_(cell.getValue());
+      if (cur === assign[h]) return;
+      if (cur && !body.overwrite) { skipped.push(h + ': already ' + cur); return; }
+      cell.setValue(assign[h]);
+      written.push(h);
+      log.push([now, id, by, h + ' (assigned)', cur, assign[h]]);
+    });
+    var sc = w.col('Status');
+    if (body.setRunning && sc && written.length && !isFormula_(w, row, sc)) {
+      var st = norm_(w.sh.getRange(row, sc).getValue());
+      if (st === '' || st === 'Pending') {
+        w.sh.getRange(row, sc).setValue('Running');
+        written.push('Status');
+        log.push([now, id, by, 'Status', st, 'Running']);
+      }
+    }
+    return { jobId: id, ok: true, written: written, skipped: skipped };
+  });
+  if (log.length) {
+    var lg2 = formLog_(w);
+    lg2.getRange(lg2.getLastRow() + 1, 1, log.length, FORM_LOG_HEADERS.length).setValues(log);
+    CacheService.getScriptCache().remove('workload');
+  }
+  return { ok: true, results: results };
+}
+
+function formLog_(w) {
+  var lg = w.sh.getParent().getSheetByName(FORM_LOG_TAB);
+  if (!lg) {
+    lg = w.sh.getParent().insertSheet(FORM_LOG_TAB);
+    lg.getRange(1, 1, 1, FORM_LOG_HEADERS.length).setValues([FORM_LOG_HEADERS]).setFontWeight('bold');
+    lg.setFrozenRows(1);
+  }
+  return lg;
 }
 
 // ---- "Update data" button: start the GitHub Action ------------------------

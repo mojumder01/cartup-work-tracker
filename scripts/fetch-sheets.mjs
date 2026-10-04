@@ -122,13 +122,28 @@ async function main() {
 
   // Tiny file for the task update form (form.html): Web app URL + names only, no row data.
   const names = new Set();
-  for (const col of ['Uploaded by', 'QC By', 'Visual editor']) {
+  const roles = { upload: new Set(), qc: new Set(), visual: new Set() };
+  const roleOf = { 'Uploaded by': 'upload', 'QC By': 'qc', 'Visual editor': 'visual' };
+  for (const col of Object.keys(roleOf)) {
     const i = work.table.columns.indexOf(col);
     if (i < 0) continue;
-    for (const r of work.table.rows) if (typeof r[i] === 'string' && r[i].trim() && r[i].length <= 60) names.add(r[i].trim());
+    for (const r of work.table.rows) {
+      if (typeof r[i] !== 'string' || !r[i].trim() || r[i].length > 60) continue;
+      names.add(r[i].trim());
+      roles[roleOf[col]].add(r[i].trim());
+    }
   }
+  const sorted = (set) => [...set].sort((a, b) => a.localeCompare(b));
   const formOut = resolve(dirname(OUTPUT), 'form.json');
-  await writeFile(formOut, JSON.stringify({ updatedAt: data.updatedAt, appsScriptUrl: data.appsScriptUrl, people: [...names].sort((a, b) => a.localeCompare(b)) }));
+  await writeFile(
+    formOut,
+    JSON.stringify({
+      updatedAt: data.updatedAt,
+      appsScriptUrl: data.appsScriptUrl,
+      people: sorted(names),
+      roles: { upload: sorted(roles.upload), qc: sorted(roles.qc), visual: sorted(roles.visual) },
+    }),
+  );
   console.log(`Wrote ${formOut}: ${names.size} names.`);
   for (const w of warnings) console.log(`::warning::${w}`);
 }

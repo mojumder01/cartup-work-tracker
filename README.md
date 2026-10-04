@@ -143,20 +143,33 @@ Work that is assigned but still **Running / Pending** (or Rejected) is **not** c
 - **Not counted**: assigned work that was not counted, and why.
 - **Governance Ad-Hoc / REVAMP progress**: included when the person appears there.
 
-## Task update form (for employees)
+## Job desk (employees) and Assign page (team leads)
 
-**URL:** `https://<user>.github.io/<repo>/form.html` (also in the sidebar as *Task update form ↗*). Add `?job=CCWT10000` to open a JOB ID directly.
+| Page | Who | URL |
+|---|---|---|
+| **Job desk** | all employees | `https://<user>.github.io/<repo>/form.html` (`?job=CCWT10000` opens a job) |
+| **Assign tasks** | team leads only — share this link only with them | `https://<user>.github.io/<repo>/assign.html` |
 
-1. The employee picks their name and enters a **JOB ID**, then clicks **Check**. The form reads that row live from the **Work Sheet** and shows the shop, task type, Number of SKU, current status and uploader. A JOB ID that is not in the Work Sheet cannot be submitted.
-2. They update **Status**, **Uploaded SKU Count**, **Upload date**, **Upload Month** and **Comments**, then click **Save to Work Sheet**.
-   - Status "Done" needs an Upload date and Uploaded SKU Count, and dates cannot be in the future.
-   - The form warns when Uploaded SKU Count is more than Number of SKU.
-3. The Apps Script writes **only those columns** into that JOB ID's row.
-   - A column calculated by a formula (e.g. Upload Month) is left alone.
-   - "Uploaded by" is filled with the employee's name only when it is empty.
-   - Every change is added to a **Form Log** tab in the main sheet: time, JOB ID, who, field, old value → new value.
+**Job desk → Search.** Search by JOB ID, Seller Code or shop name to see:
+- Shop, Seller Code, KAM and Number of SKU.
+- Who uploads, does QC and edits images.
+- Uploaded SKU count.
+- A line per stage: done, "not done yet — assigned to X", or "not done yet — not assigned".
 
-**One-time setup:** share the main *Cartup Content Work Tracker* sheet with the Apps Script's Google account as **Editor**, paste the latest `apps-script/Code.gs`, and deploy a new version. Settings → Connections shows "Task update form can write to the Work Sheet" when it is ready. The dashboard numbers include the changes after the next **Update data**.
+**Job desk → Update my task.**
+1. Check a JOB ID, then update Status, Uploaded SKU Count, Upload date, Upload Month and Comments. Only fields the person actually changes are written.
+2. A column calculated by a formula is left alone, and "Uploaded by" is filled only when it is empty.
+
+**Assign tasks.**
+1. Paste one or many JOB IDs and click **Check**. A table shows each job (shop, task, SKUs, status, current Uploaded by / Visual editor / QC By) and flags IDs that are not in the Work Sheet.
+2. Pick people for Upload / Image editing / QC. Names are sorted by **fewest open jobs** first.
+3. The "Will change" column shows exactly what will happen.
+   - People already assigned are **kept** unless *Replace people who are already assigned* is ticked.
+   - Optionally, Pending/blank jobs are set to Running.
+
+**Never overwritten by old data.** Every save sends the values the person saw when they clicked Check. If the row changed in the meantime (someone else updated it), nothing is written and they are asked to check again. Every change is recorded in the **Form Log** tab (time, JOB ID, who, field, old → new).
+
+**One-time setup:** share the main *Cartup Content Work Tracker* sheet with the Apps Script's Google account as **Editor**, paste the latest `apps-script/Code.gs`, and use **Deploy → Manage deployments → ✏️ → Version: New version → Deploy**. Settings → Connections warns when the deployed script is older than the one in this repository.
 
 ## Individual Summary report
 
