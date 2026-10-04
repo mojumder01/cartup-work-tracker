@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useGovernance } from '../hooks/useGovernance';
+import { useApp } from '../hooks/AppContext';
+import { leftChecker } from '../utils/roster';
 import { groupAdhoc, type AdhocTask } from '../utils/governance';
 import { presetRange, DATE_PRESETS, emptyFilters, type DatePreset } from '../utils/filters';
 import { fmtDate, fmtNum } from '../utils/format';
@@ -22,6 +24,7 @@ const PAGE = 50;
 
 export default function GovTasksPage() {
   const { gov, adhoc } = useGovernance();
+  const { roster } = useApp();
   const [preset, setPreset] = useState<DatePreset>('all');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -36,8 +39,9 @@ export default function GovTasksPage() {
   const options = useMemo(() => {
     const t = adhoc?.tasks ?? [];
     const uniq = (f: (x: AdhocTask) => string) => [...new Set(t.map(f).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    return { types: uniq((x) => x.taskType), people: uniq((x) => x.person), projects: uniq((x) => x.project) };
-  }, [adhoc]);
+    const isLeft = leftChecker(roster);
+    return { types: uniq((x) => x.taskType), people: uniq((x) => x.person).filter((p) => !isLeft(p)), projects: uniq((x) => x.project) };
+  }, [adhoc, roster]);
 
   const rows = useMemo(() => {
     const range = presetRange({ ...emptyFilters(), datePreset: preset, dateFrom: from, dateTo: to });

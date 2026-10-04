@@ -6,6 +6,7 @@ import { activeFilterCount, DATE_PRESETS, recordMonth, resolveMonth, type DatePr
 import { monthLabel } from '../utils/parse';
 import { fmtNum } from '../utils/format';
 import { Icon } from './Icon';
+import { leftChecker } from '../utils/roster';
 
 /** Dimensions with many values use a type-ahead instead of a dropdown. */
 const TYPEAHEAD_THRESHOLD = 60;
@@ -63,7 +64,8 @@ function SelectFilter({ label, value, options, onChange, allLabel = 'All' }: { l
 }
 
 export const FilterBar = memo(function FilterBar({ showRecordsLink = true }: { showRecordsLink?: boolean }) {
-  const { dataset, filters, setFilters, setDim, resetFilters, filtered, searched, navigate } = useApp();
+  const { dataset, filters, setFilters, setDim, resetFilters, filtered, searched, navigate, roster } = useApp();
+  const isLeft = useMemo(() => leftChecker(roster), [roster]);
   const [more, setMore] = useState(false);
   const cfg = dashboardConfig;
 
@@ -79,12 +81,12 @@ export const FilterBar = memo(function FilterBar({ showRecordsLink = true }: { s
     }
     return {
       dims,
-      people: [...people].sort((a, b) => a.localeCompare(b)),
+      people: [...people].filter((p) => !isLeft(p) || p === filters.employee).sort((a, b) => a.localeCompare(b)),
       months: [...months.keys()].sort().reverse(),
       monthCounts: months,
       dateBasis: cfg.dateBasisColumns.filter((c) => dataset.has(c)),
     };
-  }, [dataset, cfg]);
+  }, [dataset, cfg, isLeft, filters.employee]);
 
   const dimControl = (column: string) => {
     const opts = options.dims[column];

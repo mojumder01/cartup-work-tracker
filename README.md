@@ -362,6 +362,17 @@ Where the roster comes from (highest priority first):
 
 To share your changes with everyone: click **Copy for Google Sheet**, paste into cell A1 of a `Team Members` tab, and the next sync (≤ 5 min) applies it for all viewers.
 
+**People who left are hidden from every name list:**
+- the dashboard's Employee filter and Team Member picker;
+- REVAMP project and Ad-Hoc filters and pickers;
+- report pickers;
+- the Job desk's "Your name" list;
+- the Task board's lead, filter and **Assign to** lists.
+
+The All tab on Team Members lists Active people first, then those who left. Their past work stays in the numbers and reports.
+
+The Job desk and Task board get the list from the sync, which uses the Team tab ("Resigned") and the `Team Members` tab. They also apply changes saved on the Team Members page in the same browser. To hide someone on everyone's devices, put the change in the Google Sheet.
+
 ## Security
 
 - The service-account key exists **only** in the `GOOGLE_SERVICE_ACCOUNT_JSON` GitHub secret. It is never written to disk in CI, never logged, and never bundled into the site.

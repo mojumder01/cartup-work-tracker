@@ -6,6 +6,7 @@
  */
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { SearchPanel } from './SearchPanel';
+import { makeIsLeft } from '../services/leftPeople';
 import { BuiltBy } from '../components/BuiltBy';
 import { asDate, asMonth, scriptRead, scriptWrite, withAnyUrl, type WriteValue } from '../services/scriptApi';
 
@@ -39,6 +40,8 @@ interface Lookup {
 interface FormConfig {
   appsScriptUrl: string | null;
   people: string[];
+  /** Marked "Left" / "Resigned" (sync); hidden from the name list. */
+  left?: string[];
 }
 
 const STATUSES = ['Done', 'Running', 'Pending', 'Rejected'];
@@ -96,7 +99,7 @@ export function TaskForm() {
   useEffect(() => {
     fetch(`data/form.json?t=${Date.now()}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((j: FormConfig) => setCfg({ appsScriptUrl: j.appsScriptUrl ?? null, people: j.people ?? [] }))
+      .then((j: FormConfig) => setCfg({ appsScriptUrl: j.appsScriptUrl ?? null, people: j.people ?? [], left: j.left ?? [] }))
       .catch(() => {
         setCfg({ appsScriptUrl: null, people: [] });
         setCfgError('The form settings are not published yet — run “Update data” on the dashboard once.');
@@ -106,6 +109,7 @@ export function TaskForm() {
   const [localUrl] = useState(() => localAppsScriptUrl());
   /** URL that answered a JOB ID check correctly (used for saving). */
   const [workingUrl, setWorkingUrl] = useState<string | null>(null);
+  const isLeft = useMemo(() => makeIsLeft(cfg?.left), [cfg]);
   const candidates = [...new Set([localUrl, cfg?.appsScriptUrl].filter((u): u is string => !!u))];
   const url = workingUrl || candidates[0] || null;
 
@@ -315,7 +319,7 @@ export function TaskForm() {
             <span>Your name *</span>
             <input className="input" list="tf-people" value={who} onChange={(e) => setWho(e.target.value)} placeholder="Choose or type your name" autoComplete="off" />
             <datalist id="tf-people">
-              {(cfg?.people ?? []).map((p) => (
+              {(cfg?.people ?? []).filter((p) => !isLeft(p)).map((p) => (
                 <option key={p} value={p} />
               ))}
             </datalist>

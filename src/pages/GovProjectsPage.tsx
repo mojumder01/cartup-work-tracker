@@ -8,6 +8,7 @@ import { fmtDate, fmtNum, fmtPct, fmtRelative, toIsoDate } from '../utils/format
 import { Banner, Card, EmptyState, ErrorState, KpiCard, Meter, Segmented } from '../components/ui';
 import { Icon } from '../components/Icon';
 import type { CellValue } from '../types';
+import { leftChecker } from '../utils/roster';
 
 type Row = Record<string, CellValue>;
 
@@ -21,7 +22,8 @@ function usePeople() {
   return useMemo(() => {
     const set = new Set<string>();
     roster.filter((p) => p.status === 'Active').forEach((p) => set.add(p.name));
-    adhoc?.tasks.forEach((t) => t.person && set.add(t.person));
+    const isLeft = leftChecker(roster);
+    adhoc?.tasks.forEach((t) => t.person && !isLeft(t.person) && set.add(t.person));
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [roster, adhoc]);
 }
@@ -33,7 +35,10 @@ function usePeople() {
 function ProgressForm({ project, onSave }: { project: Project; onSave: (rows: Row[]) => Promise<void> }) {
   const { who } = useGovernance();
   const people = usePeople();
-  const choices = project.assignees.length || project.pocs.length ? [...new Set([...project.assignees, ...project.pocs])] : people;
+  const { roster } = useApp();
+  const isLeft = leftChecker(roster);
+  const crew = [...new Set([...project.assignees, ...project.pocs])].filter((p) => !isLeft(p));
+  const choices = crew.length ? crew : people;
   const lines = project.lines.length ? project.lines : [''];
   const fields = metricLabels(project);
   const blank = () => Object.fromEntries(lines.map((l) => [l, { reviewed: '', found: '', updated: '' }])) as Record<string, Record<'reviewed' | 'found' | 'updated', string>>;
@@ -142,7 +147,10 @@ function ProgressForm({ project, onSave }: { project: Project; onSave: (rows: Ro
 function CustomProgressForm({ project, onSave }: { project: Project; onSave: (rows: Row[]) => Promise<void> }) {
   const { who } = useGovernance();
   const people = usePeople();
-  const choices = project.assignees.length || project.pocs.length ? [...new Set([...project.assignees, ...project.pocs])] : people;
+  const { roster } = useApp();
+  const isLeft = leftChecker(roster);
+  const crew = [...new Set([...project.assignees, ...project.pocs])].filter((p) => !isLeft(p));
+  const choices = crew.length ? crew : people;
   const team = project.rowsFrom === 'Team';
   const rows = projectRows(project);
   const cols = numberColumns(project);

@@ -19,6 +19,7 @@ import { transformReportTab, transformWorkSheet } from './lib/transform.mjs';
 import { fetchGovernance } from './lib/governance.mjs';
 import { fetchPerformance } from './lib/performance.mjs';
 import { fetchExtraSources } from './lib/extra.mjs';
+import { leftNames } from './lib/left.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT = resolve(root, process.env.DATA_OUTPUT ?? 'public/data/data.json');
@@ -138,6 +139,7 @@ async function main() {
     }
   }
   const sorted = (set) => [...set].sort((a, b) => a.localeCompare(b));
+  const left = leftNames(names, data.team, data.performance?.team);
   const formOut = resolve(dirname(OUTPUT), 'form.json');
   await writeFile(
     formOut,
@@ -146,9 +148,11 @@ async function main() {
       appsScriptUrl: data.appsScriptUrl,
       people: sorted(names),
       roles: { upload: sorted(roles.upload), qc: sorted(roles.qc), visual: sorted(roles.visual) },
+      /** Marked "Left" / "Resigned" — hidden from the name lists of the Job desk and Task board. */
+      left,
     }),
   );
-  console.log(`Wrote ${formOut}: ${names.size} names.`);
+  console.log(`Wrote ${formOut}: ${names.size} names (${left.length} left the job: ${left.join(', ') || 'none'}).`);
   for (const w of warnings) console.log(`::warning::${w}`);
 }
 

@@ -10,7 +10,7 @@ import { useGovernance } from '../../hooks/useGovernance';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { buildCatalogueReport } from '../../utils/catalogue';
 import { listPeriods, monthPeriod, type Period } from '../../utils/periods';
-import { findPerson } from '../../utils/roster';
+import { findPerson, leftChecker } from '../../utils/roster';
 import { stamp } from '../../utils/export';
 import { applyEdits, buildDeck, getPath, orderSlides, TONE_COLOR, TONE_LABEL, type CustomSlide, type Deck, type MSlide, type MTable, type Tone } from '../../utils/monthlyReport';
 import { badgeColor, CARD, HEAD, ICE, INK, LINE, MUTED, NAVY, NAVY_2, RED, tableFit, tagWidth } from '../../utils/monthlyPptx';
@@ -358,9 +358,10 @@ export function MonthlyReport() {
   );
   const adhocPeople = useMemo(() => {
     const m = new Map<string, number>();
-    for (const t of gov.adhoc?.tasks ?? []) if (t.person && t.date !== null && t.date >= month.start && t.date < month.end) m.set(t.person, (m.get(t.person) ?? 0) + t.products);
+    const isLeft = leftChecker(roster);
+    for (const t of gov.adhoc?.tasks ?? []) if (t.person && !isLeft(t.person) && t.date !== null && t.date >= month.start && t.date < month.end) m.set(t.person, (m.get(t.person) ?? 0) + t.products);
     return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
-  }, [gov.adhoc, month]);
+  }, [gov.adhoc, month, roster]);
 
   const auto = useMemo(
     () =>

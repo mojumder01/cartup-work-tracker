@@ -6,6 +6,7 @@
  * written if a row changed after the list was loaded.
  */
 import { BuiltBy } from '../components/BuiltBy';
+import { makeIsLeft } from '../services/leftPeople';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { scriptRead, scriptWrite, withAnyUrl, type WriteOp } from '../services/scriptApi';
 
@@ -27,6 +28,8 @@ interface Config {
   appsScriptUrl: string | null;
   people: string[];
   roles?: Record<RoleKey, string[]>;
+  /** Marked "Left" / "Resigned" (sync); hidden from the name lists. */
+  left?: string[];
 }
 interface Result {
   jobId: string;
@@ -221,11 +224,12 @@ export function AssignForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [all, role, field, days]);
 
+  const isLeft = useMemo(() => makeIsLeft(cfg?.left), [cfg]);
   const people = useMemo(() => {
-    const names = new Set([...(cfg?.roles?.[role] ?? cfg?.people ?? []), ...inHand.map((p) => p.name)]);
+    const names = new Set([...(cfg?.roles?.[role] ?? cfg?.people ?? []), ...inHand.map((p) => p.name)].filter((n) => !isLeft(n)));
     const load0 = (n: string) => inHand.find((p) => p.name.toLowerCase() === n.toLowerCase())?.open ?? 0;
     return [...names].sort((a, b) => load0(a) - load0(b) || a.localeCompare(b)).map((n) => ({ name: n, open: load0(n) }));
-  }, [cfg, role, inHand]);
+  }, [cfg, role, inHand, isLeft]);
 
   const taskTypes = useMemo(() => [...new Set(all.map((j) => t(j['Task Type'])).filter(Boolean))].sort(), [all]);
   const kams = useMemo(() => [...new Set(all.map((j) => t(j.KAM)).filter(Boolean))].sort(), [all]);
@@ -321,7 +325,7 @@ export function AssignForm() {
           <div className="ab-head-tools">
             <input className="input" style={{ width: 190 }} list="ab-people" value={lead} onChange={(e) => setLead(e.target.value)} placeholder="Your name (team lead)" aria-label="Your name (team lead)" />
             <datalist id="ab-people">
-              {(cfg?.people ?? []).map((p) => (
+              {(cfg?.people ?? []).filter((p) => !isLeft(p)).map((p) => (
                 <option key={p} value={p} />
               ))}
             </datalist>
@@ -385,11 +389,13 @@ export function AssignForm() {
               <select className="select" value={person} onChange={(e) => setPerson(e.target.value)} aria-label={`${ROLES[role].field}`}>
                 <option value="">Anyone ({ROLES[role].short})</option>
                 <option value="__none">Not assigned</option>
-                {inHand.map((p) => (
-                  <option key={p.name} value={p.name}>
-                    {p.name}
-                  </option>
-                ))}
+                {inHand
+                  .filter((p) => !isLeft(p.name) || p.name === person)
+                  .map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
               </select>
               <select className="select" value={days} onChange={(e) => setDays(e.target.value)} aria-label="Period">
                 {['7', '30', '90'].map((d) => (
