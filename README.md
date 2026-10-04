@@ -201,7 +201,7 @@ Options (remembered in your browser):
 - **Teams & people:** tick Production, Visual and/or QC, and tick who appears. *Auto* = active team members with work in either period. People who left are not pre-selected.
 - **Summary line & Key Notes** are generated from the numbers and can be edited before printing.
 - **Extra highlight boxes** for work that is not in the Work Sheet (Campaign Sticker, Keyword Tag Checking, Category Revamp…).
-- **Retail [Picks] uploads** (own table) and **Pending QC (Admin Portal, now)** in At a Glance, from the two extra sheets below. Each is shown only when its sheet is connected.
+- **Retail [Picks] uploads** are added to the **Production** table (sellers = rows, SKUs = column **F** of the Retail sheet, set by `extraSources.retail.columns.skus` in `config/data-source.json`). Names that differ slightly between sheets ("Iftkhar" / "Iftakhar") count as the same person. **Pending QC (Admin Portal, now)** is shown in At a Glance. Each appears only when its sheet is connected.
 - **Project tables:** REVAMP projects set to *Individual Summary* or *Both* appear as tables on this slide. Their "At a Glance" line (if set) is added to the panel. Tick which ones appear.
 - **Excel** downloads the same tables.
 

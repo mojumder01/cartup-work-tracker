@@ -30,6 +30,11 @@ export function detect<K extends string>(t: ExtraTable | null | undefined, field
   const lower = (t?.columns ?? []).map((c) => c.trim().toLowerCase());
   const out = {} as Mapping<K>;
   (Object.keys(fields) as K[]).forEach((k) => {
+    const fixed = t?.fields?.[k];
+    if (fixed && t?.columns.includes(fixed)) {
+      out[k] = fixed;
+      return;
+    }
     const i = fields[k].names.map((n) => lower.indexOf(n.toLowerCase())).find((x) => x >= 0);
     out[k] = i === undefined ? null : (t as ExtraTable).columns[i];
   });
