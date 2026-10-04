@@ -218,6 +218,20 @@ How each number is calculated (checked against the Week 37 vs Week 38 template):
 
 The **Product Governance** report is under **Reports → Product Governance** (see *Governance team tracker* below).
 
+## Monthly Report
+
+**Reports → Monthly Report** builds the "August 2026 Monthly Report" deck for any month (default: the last completed month):
+
+| Slide | Numbers |
+|---|---|
+| Title, Key Highlights | Written from the numbers below |
+| 1 Production · 2 QC · 3 Visual | Team totals of the Monthly Performance report. Target = Σ targets of the people who worked that month; Achieved % = team total ÷ team target |
+| 4.x Governance | One slide per REVAMP project with *Include in reports* on. *Sum* projects show the month's entries added up; running-total projects show `+change (before → end of month)` |
+| 5.x Other / Ad-Hoc | Governance Main tab rows dated in the month, grouped by task type and by person, plus an optional breakdown slide per person |
+| Team Achievement Overview | Achieved % chart for Production / QC / Visual, plus the Governance and Ad-Hoc totals |
+
+**Click any text on a slide to edit it.** That includes titles, notes, highlight lines and every table cell. Edits are saved in your browser per month; clear a text to get the automatic one back. You can also hide or reorder slides, and add **text slides** (with 0–3 cards and a COMPLETE / IN PROGRESS badge) for work that is not in the sheets. Download **PowerPoint**, where every text box, table and the chart stay editable, or **PDF / Print** (one 16:9 page per slide).
+
 ## Data updates (manual)
 
 The dashboard no longer syncs automatically. To pull the latest Google Sheets data, click **Update data** (top right). The Apps Script starts the GitHub Action, and the page reloads itself when the new data is published, usually after 1–2 minutes. Without the Apps Script token the button opens **Actions → Run workflow** on GitHub instead. "Data from Google Sheets: …" shows when the data was last read. The small ↻ button only re-reads the already-published data.

@@ -123,3 +123,33 @@
 .cat-foot { font-size: 11.5px; color: var(--ink-3); margin-top: 4px; }
 @media (max-width: 900px) { .cat-block { overflow-x: auto; } }
 .gov-edit-block { border: 1px solid var(--accent); border-radius: 8px; padding: 10px; background: var(--accent-soft); }
+
+/* Monthly Report deck (13.33 × 7.5 in at 96 px/in = 1280 × 720). Always light: it is a print document. */
+.md-stage { display: flex; justify-content: center; }
+.md-deck { display: flex; flex-direction: column; gap: 18px; align-items: center; }
+.md-wrap { overflow: hidden; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.14); flex-shrink: 0; }
+.md-slide { position: relative; width: 1280px; height: 720px; overflow: hidden; background: #fff; color: #26304d; font-family: Calibri, 'Carlito', 'Segoe UI', Arial, sans-serif; line-height: 1.2; color-scheme: light; }
+.md-t { white-space: pre-wrap; overflow-wrap: anywhere; outline: 1px dashed transparent; outline-offset: 1px; border-radius: 2px; cursor: text; }
+.md-t:hover { outline-color: rgba(178, 87, 27, 0.55); }
+.md-t:focus { outline: 2px solid #b2571b; background: rgba(255, 255, 255, 0.08); }
+.md-t.md-edited { box-shadow: inset 0 -2px 0 rgba(201, 122, 30, 0.6); }
+.md-table { border-collapse: collapse; table-layout: fixed; }
+.md-table th, .md-table td { border: 1px solid #dfe4f0; padding: 0 9px; vertical-align: middle; overflow: hidden; }
+.md-table th { color: #fff; font-weight: 700; }
+.md-table td { color: #26304d; }
+.md-table .md-t { white-space: normal; }
+.md-chart { display: flex; flex-direction: column; }
+.md-chart-title { color: #fff; font-weight: 700; font-size: 18.7px; text-align: center; margin-bottom: 10px; }
+.md-bars { flex: 1; display: flex; gap: 40px; justify-content: center; align-items: stretch; border-bottom: 1px solid #3a4488; padding: 0 30px; }
+.md-bar { display: flex; flex-direction: column; align-items: center; width: 110px; }
+.md-bar-col { flex: 1; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+.md-bar-col i { display: block; width: 100%; border-radius: 3px 3px 0 0; }
+.md-bar-v { color: #fff; font-weight: 700; font-size: 18.7px; margin-bottom: 4px; }
+.md-bar-l { color: #cadcfc; font-size: 17.3px; margin-top: 8px; position: relative; top: 30px; height: 0; }
+.md-list { display: flex; flex-direction: column; gap: 2px; max-height: 340px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px; }
+.md-li { display: grid; grid-template-columns: 18px 22px minmax(0, 1fr) 26px 26px auto; align-items: center; gap: 4px; font-size: 13px; padding: 2px 4px; border-radius: 6px; }
+.md-li:hover { background: var(--surface-2); }
+.md-li.off .md-li-t { color: var(--ink-3); text-decoration: line-through; }
+.md-li-n { color: var(--ink-3); font-size: 11.5px; text-align: right; }
+.md-li-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-li .icon-btn { width: 26px; height: 26px; }
