@@ -20,9 +20,13 @@ const GRANULARITY: { id: Granularity; label: string }[] = [
   { id: 'month', label: 'Monthly' },
 ];
 
+const ROLE_OF_DATE: Record<string, string> = { [C.uploadDate]: C.uploadedBy, [C.qcDate]: C.qcBy, [C.imageDate]: C.visualEditor };
+
 /** Time-series card with daily / weekly / monthly granularity. */
 function TrendCard({ title, dateCol, sumCol, valueLabel, color, span = true }: { title: string; dateCol: string; sumCol: string; valueLabel: string; color: string; span?: boolean }) {
-  const { dataset, filtered } = useApp();
+  const { dataset, filtered: all, roleFiltered } = useApp();
+  // Employee filter: the person's own work for this trend (uploads / QC / images by the date's role).
+  const filtered = ROLE_OF_DATE[dateCol] ? roleFiltered(ROLE_OF_DATE[dateCol]) : all;
   const [g, setG] = useState<Granularity>('week');
   const data = useMemo(() => {
     const series = timeSeries(filtered, dateCol, g, sumCol);
@@ -99,7 +103,8 @@ function StatusBars({ title, column }: { title: string; column: string }) {
 /* ---------------- Upload ---------------- */
 
 export const UploadSummaryCard = memo(function UploadSummaryCard({ compact }: { compact?: boolean }) {
-  const { dataset, filtered } = useApp();
+  const { dataset, roleFiltered } = useApp();
+  const filtered = roleFiltered(C.uploadedBy);
   const s = useMemo(() => summarize(dataset, filtered), [dataset, filtered]);
   const tat = useMemo(() => medianTurnaroundDays(filtered, C.timestamp, C.uploadDate), [filtered]);
   return (
@@ -137,7 +142,8 @@ export function UploadDetail() {
 /* ---------------- QC ---------------- */
 
 export const QcSummaryCard = memo(function QcSummaryCard({ compact }: { compact?: boolean }) {
-  const { dataset, filtered, setDrill } = useApp();
+  const { dataset, roleFiltered, setDrill } = useApp();
+  const filtered = roleFiltered(C.qcBy);
   const s = useMemo(() => summarize(dataset, filtered), [dataset, filtered]);
   const tat = useMemo(() => medianTurnaroundDays(filtered, C.uploadDate, C.qcDate), [filtered]);
   return (
@@ -184,7 +190,8 @@ export function QcDetail() {
 /* ---------------- Visual / Image ---------------- */
 
 export const VisualSummaryCard = memo(function VisualSummaryCard({ compact }: { compact?: boolean }) {
-  const { dataset, filtered } = useApp();
+  const { dataset, roleFiltered } = useApp();
+  const filtered = roleFiltered(C.visualEditor);
   const s = useMemo(() => summarize(dataset, filtered), [dataset, filtered]);
   const tat = useMemo(() => medianTurnaroundDays(filtered, C.timestamp, C.imageDate), [filtered]);
   return (
@@ -202,7 +209,8 @@ export const VisualSummaryCard = memo(function VisualSummaryCard({ compact }: { 
 });
 
 export const AiManualCard = memo(function AiManualCard() {
-  const { dataset, filtered } = useApp();
+  const { dataset, roleFiltered } = useApp();
+  const filtered = roleFiltered(C.visualEditor);
   const s = useMemo(() => summarize(dataset, filtered), [dataset, filtered]);
   if (!s.ai && !s.manual) {
     return (

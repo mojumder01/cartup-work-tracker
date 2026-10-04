@@ -389,7 +389,17 @@ export function AssignForm() {
                   <option key={x}>{x}</option>
                 ))}
               </select>
-              <select className="select" value={person} onChange={(e) => setPerson(e.target.value)} aria-label={`${ROLES[role].field}`}>
+              <select
+                className="select"
+                value={person}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setPerson(v);
+                  // "Not assigned" + a person would always be empty → show that person's open jobs.
+                  if (v && v !== '__none' && status === 'unassigned') setStatus('open');
+                }}
+                aria-label={`${ROLES[role].field}`}
+              >
                 <option value="">Anyone ({ROLES[role].short})</option>
                 <option value="__none">Not assigned</option>
                 {inHand

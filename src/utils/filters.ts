@@ -29,6 +29,8 @@ export interface Filters {
   dateBasis: string;
   /** '' = all, '__current', '__previous', or a month key "YYYY-MM". */
   month: string;
+  /** '' = all years, or "YYYY". */
+  year: string;
   dims: Record<string, string>;
   employee: string;
   drill: Drill | null;
@@ -41,6 +43,7 @@ export const emptyFilters = (): Filters => ({
   dateTo: '',
   dateBasis: dashboardConfig.dateBasisColumns[0],
   month: '',
+  year: '',
   dims: {},
   employee: '',
   drill: null,
@@ -110,6 +113,7 @@ export interface ApplyOptions {
 export function applyFilters(records: WorkRecord[], f: Filters, opts: ApplyOptions = {}): WorkRecord[] {
   const range = opts.ignoreDate ? null : presetRange(f);
   const month = opts.ignoreDate ? null : resolveMonth(f.month);
+  const year = opts.ignoreDate ? '' : f.year ?? '';
   const dims = Object.entries(f.dims).filter(([, v]) => v !== '');
   const employee = f.employee.toLowerCase();
   const empCols = dashboardConfig.employeeFilterColumns;
@@ -120,10 +124,11 @@ export function applyFilters(records: WorkRecord[], f: Filters, opts: ApplyOptio
       const ms = r.dates[opts.dateColumn ?? f.dateBasis];
       if (ms == null || ms < range[0] || ms >= range[1]) return false;
     }
-    if (month) {
+    if (month || year) {
       const own = opts.dateColumn ? r.dates[opts.dateColumn] : undefined;
       const key = opts.dateColumn ? (own != null ? monthKeyOf(own) : null) : recordMonth(r);
-      if (key !== month) return false;
+      if (month && key !== month) return false;
+      if (year && !(key ?? '').startsWith(year)) return false;
     }
     for (const [col, val] of dims) if (text(r.values[col]).toLowerCase() !== val.toLowerCase()) return false;
     if (employee && !empCols.some((c) => text(r.values[c]).toLowerCase() === employee)) return false;
@@ -137,6 +142,7 @@ export function activeFilterCount(f: Filters): number {
   return (
     (f.datePreset !== 'all' ? 1 : 0) +
     (f.month ? 1 : 0) +
+    (f.year ? 1 : 0) +
     Object.values(f.dims).filter(Boolean).length +
     (f.employee ? 1 : 0) +
     (f.drill ? 1 : 0) +

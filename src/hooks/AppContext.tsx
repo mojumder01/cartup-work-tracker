@@ -24,6 +24,8 @@ interface AppState {
   searched: WorkRecord[];
   /** Finished work for a role column (Uploaded by / QC By / Visual editor), filtered by that role's own date. Other columns → `filtered`. */
   roleRecords: (column: string) => WorkRecord[];
+  /** `filtered` limited to rows where this role column is the chosen Employee (all of `filtered` when no Employee is chosen). */
+  roleFiltered: (column: string) => WorkRecord[];
   navigate: (r: Route) => void;
   person: string;
   setPerson: (name: string) => void;
@@ -64,7 +66,7 @@ export function AppProvider({ data, navigate, children }: { data: DashboardData;
   const filtered = useMemo(() => applyFilters(dataset.records, filters, { ignoreSearch: true }), [
     dataset,
     // search is excluded on purpose so typing does not recompute every chart
-    filters.datePreset, filters.dateFrom, filters.dateTo, filters.dateBasis, filters.month, filters.dims, filters.employee, filters.drill,
+    filters.datePreset, filters.dateFrom, filters.dateTo, filters.dateBasis, filters.month, filters.year, filters.dims, filters.employee, filters.drill,
   ]);
   const searched = useMemo(
     () => (search.trim() ? applyFilters(filtered, { ...emptyFilters(), search }) : filtered),
@@ -83,12 +85,28 @@ export function AppProvider({ data, navigate, children }: { data: DashboardData;
       let hit = cache.get(rule.column);
       if (!hit) {
         hit = creditedRecords(dataset, applyFilters(dataset.records, filters, { ignoreSearch: true, dateColumn: rule.date }), rule);
+        // Employee filter: only that person's own work in this role (not others' work on their jobs).
+        if (filters.employee) hit = hit.filter((r) => String(r.values[rule.column] ?? '').trim().toLowerCase() === filters.employee.toLowerCase());
         cache.set(rule.column, hit);
       }
       return hit;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataset, filtered]);
+
+  const roleFiltered = useMemo(() => {
+    const cache = new Map<string, WorkRecord[]>();
+    return (column: string): WorkRecord[] => {
+      if (!filters.employee) return filtered;
+      let hit = cache.get(column);
+      if (!hit) {
+        const who = filters.employee.toLowerCase();
+        hit = filtered.filter((r) => String(r.values[column] ?? '').trim().toLowerCase() === who);
+        cache.set(column, hit);
+      }
+      return hit;
+    };
+  }, [filtered, filters.employee]);
 
   const setDim = useCallback((column: string, value: string) => {
     setFilters((f) => ({ ...f, dims: { ...f.dims, [column]: value } }));
@@ -111,7 +129,7 @@ export function AppProvider({ data, navigate, children }: { data: DashboardData;
 
   const value: AppState = {
     data, dataset, kpi, target, filters, setFilters, setDim, setDrill, resetFilters,
-    filtered, searched, roleRecords, navigate, person, setPerson, openPerson,
+    filtered, searched, roleRecords, roleFiltered, navigate, person, setPerson, openPerson,
     roster, rosterOverrides, setRosterOverride, clearRosterOverrides,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
