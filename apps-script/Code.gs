@@ -31,6 +31,8 @@
  *   The token stays inside Google; the browser never sees it.
  */
 
+/** Script version — shown by ?action=ping so the dashboard can tell an old deployment. */
+var SCRIPT_VERSION = '1.6.1';
 var SPREADSHEET_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
 /** Main "Cartup Content Work Tracker" sheet — the task update form writes to its Work Sheet tab. */
 var WORK_SPREADSHEET_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
@@ -176,10 +178,11 @@ function doGet(e) {
       try { ss_(); } catch (err) { sheet = { ok: false, error: String(err && err.message ? err.message : err) }; }
       var work = { ok: true, error: null };
       try { workSheet_(); } catch (err2) { work = { ok: false, error: String(err2 && err2.message ? err2.message : err2) }; }
-      return json_({ ok: true, sync: !!github_(), sheet: sheet.ok, sheetError: sheet.error, work: work.ok, workError: work.error, account: account_() });
+      return json_({ ok: true, sync: !!github_(), sheet: sheet.ok, sheetError: sheet.error, work: work.ok, workError: work.error, account: account_(), version: SCRIPT_VERSION });
     }
     if (action === 'syncStatus') return json_(syncStatus_());
     if (action === 'job') return json_(lookupJob_(e.parameter.id));
+    if (action !== 'list') throw new Error('Unknown action "' + action + '" — this Web app may be an older version of the script.');
     return json_({ ok: true, projects: readTab_(PROJECTS_TAB, PROJECT_HEADERS), progress: readTab_(PROGRESS_TAB, PROGRESS_HEADERS) });
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message ? err.message : err) });
