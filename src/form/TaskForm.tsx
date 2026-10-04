@@ -6,6 +6,7 @@
  */
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { readAppsScriptJson } from '../services/appsScriptResponse';
+import { SearchPanel } from './SearchPanel';
 import { isAppsScriptUrl, LOCAL_URL_KEY, localAppsScriptUrl } from '../services/appsScriptUrl';
 
 type Cell = string | number | null;
@@ -78,6 +79,7 @@ export function TaskForm() {
   const [cfgError, setCfgError] = useState<string | null>(null);
   const [who, setWho] = useStored('cartup.formUser', '');
   const [jobInput, setJobInput] = useState(() => new URLSearchParams(location.search).get('job') ?? '');
+  const [tab, setTab] = useState<'search' | 'update'>(() => (new URLSearchParams(location.search).get('job') ? 'update' : 'search'));
   const [checking, setChecking] = useState(false);
   const [lookup, setLookup] = useState<Lookup | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -158,7 +160,7 @@ export function TaskForm() {
           status: text(j.job.Status),
           sku: text(j.job['Uploaded SKU Count']),
           date: d,
-          month: monthOf(isoDay(j.job['Upload Month'])) || monthOf(d),
+          month: monthOf(isoDay(j.job['Upload Month'])),
           monthTouched: false,
           comments: text(j.job.Comments),
         });
@@ -216,7 +218,14 @@ export function TaskForm() {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'submitTask', jobId: job['JOB ID'], by: who.trim(), changes }),
+        // expect = the values shown when the JOB ID was checked; the script refuses to save if the row changed since.
+        body: JSON.stringify({
+          action: 'submitTask',
+          jobId: job['JOB ID'],
+          by: who.trim(),
+          changes,
+          expect: Object.fromEntries(Object.keys(changes).map((k) => [k, (job as unknown as Record<string, Cell>)[k] ?? null])),
+        }),
       });
       if (!res.ok) throw new Error(`The Google Sheets service returned HTTP ${res.status}.`);
       const j = await readAppsScriptJson<{ ok: boolean; error?: string; written?: string[]; skipped?: { field: string; reason: string }[] }>(res);
@@ -227,7 +236,7 @@ export function TaskForm() {
         text:
           `Saved to the Work Sheet for ${job['JOB ID']}: ${(j.written ?? []).join(', ') || 'no changes'}.` +
           (skipped.length ? ` Not changed: ${skipped.join(', ')}.` : '') +
-          ' The dashboard shows it after the next “Update data”.',
+          ' Reports include it after the next data update.',
       });
       await check(job['JOB ID'], true);
     } catch (e2) {
@@ -252,12 +261,9 @@ export function TaskForm() {
             C
           </div>
           <div>
-            <h1>Task update form</h1>
-            <div className="muted">Cartup Content · updates your job in the Work Sheet</div>
+            <h1>Cartup job desk</h1>
+            <div className="muted">Find a job, or update your work in the Work Sheet</div>
           </div>
-          <a className="btn btn-sm" style={{ marginLeft: 'auto' }} href="./">
-            Dashboard
-          </a>
         </div>
 
         {cfgError && <div className="tf-msg warn">{cfgError}</div>}
@@ -267,6 +273,27 @@ export function TaskForm() {
           </div>
         )}
 
+        <div className="tf-tabs" role="tablist">
+          {(['search', 'update'] as const).map((k) => (
+            <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
+              {k === 'search' ? 'Search' : 'Update my task'}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'search' && (
+          <SearchPanel
+            urls={workingUrl ? [workingUrl, ...candidates.filter((u) => u !== workingUrl)] : candidates}
+            onUpdate={(id) => {
+              setTab('update');
+              setJobInput(id);
+              check(id);
+            }}
+          />
+        )}
+
+        {tab === 'update' && (
+          <>
         <div className="tf-card">
           <label className="field">
             <span>Your name *</span>
@@ -382,10 +409,13 @@ export function TaskForm() {
             </div>
           </form>
         )}
+          </>
+        )}
+
         <div className="tf-hint" style={{ textAlign: 'center' }}>
           {url ? (
             <>
-              Connected to Web app …{url.slice(-26, -5)} ({workingUrl ? 'working' : localUrl === url ? 'saved in this browser' : 'from the dashboard'}) ·{' '}
+              Connected to Web app …{url.slice(-26, -5)} ({workingUrl ? 'working' : localUrl === url ? 'saved in this browser' : 'default'}) ·{' '}
             </>
           ) : null}
           <button type="button" className="rb-link" onClick={() => setEditUrl(editUrl === null ? localUrl ?? '' : null)}>
