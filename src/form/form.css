@@ -38,13 +38,20 @@
 .mt-pending b { color: #b45309; }
 .mt-running b { color: #2563eb; }
 .mt-list { display: flex; flex-direction: column; margin-top: 10px; border: 1px solid var(--border); border-radius: 10px; max-height: 360px; overflow: auto; }
-.mt-row { display: grid; grid-template-columns: 100px minmax(0, 1fr) 80px 44px 110px; gap: 8px; align-items: center; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: inherit; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
+.mt-row { display: grid; grid-template-columns: 92px minmax(0, 1.2fr) minmax(0, 1.4fr) 56px 40px 62px 76px; gap: 8px; align-items: center; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: inherit; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
 .mt-row:hover { background: var(--surface-2); }
 .mt-row:last-child { border-bottom: 0; }
-.mt-shop { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-shop, .mt-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-note { font-size: 12.5px; color: var(--ink-2, var(--ink)); }
+.mt-head { cursor: default; font-size: 11.5px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .03em; background: var(--surface-2); position: sticky; top: 0; z-index: 1; }
+.mt-head:hover { background: var(--surface-2); }
+.mt-row a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.mt-row a:hover { text-decoration: underline; }
+.mt-dates { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; }
+.mt-dates .field { flex: 0 1 170px; }
 .mt-st { font-size: 12.5px; color: var(--ink-2, var(--ink)); }
 @media (max-width: 560px) {
   .mt-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .mt-row { grid-template-columns: 90px minmax(0, 1fr) 70px; }
-  .mt-row > :nth-child(4), .mt-row > :nth-child(5) { display: none; }
+  .mt-row { grid-template-columns: 84px minmax(0, 1fr) 56px 70px; }
+  .mt-row > :nth-child(3), .mt-row > :nth-child(4), .mt-row > :nth-child(5) { display: none; }
 }
