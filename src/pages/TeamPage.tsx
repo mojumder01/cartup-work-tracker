@@ -4,7 +4,7 @@ import { useApp } from '../hooks/AppContext';
 import { distinct, personTable, type PersonRow } from '../utils/aggregate';
 import { fmtNum, fmtPct, fmtSigned, NA } from '../utils/format';
 import { text } from '../utils/parse';
-import { checkCredit, creditRule } from '../utils/credit';
+import { checkCredit, creditRule, hasDateFilter } from '../utils/credit';
 import { AchievementBadge, Card, EmptyState, Meter, Stat } from '../components/ui';
 import { TeamLeaderboard } from '../components/sections/TeamLeaderboard';
 import { WorkTable } from '../components/WorkTable';
@@ -60,7 +60,7 @@ function KpiLine({ section, m }: { section: string; m: KpiMetric }) {
 }
 
 export default function TeamPage() {
-  const { dataset, filtered, roleRecords, kpi, person, setPerson, roster } = useApp();
+  const { dataset, filtered, roleRecords, kpi, person, setPerson, roster, filters } = useApp();
   const leftSet = useMemo(() => new Set(roster.filter((p) => p.status === 'Left').map((p) => p.name.toLowerCase())), [roster]);
   const roles = dashboardConfig.personColumns.filter((c) => dataset.has(c));
 
@@ -83,11 +83,11 @@ export default function TeamPage() {
           const mine = roleRecords(role).filter((r) => text(r.values[role]).toLowerCase() === key);
           const assigned = filtered.filter((r) => text(r.values[role]).toLowerCase() === key);
           const rule = creditRule(role);
-          const open = rule ? assigned.filter((r) => !checkCredit(dataset, r, rule).counted).length : 0;
+          const open = rule ? assigned.filter((r) => !checkCredit(dataset, r, rule, hasDateFilter(filters)).counted).length : 0;
           return { role, row: personTable(mine, role).find((p) => p.name.toLowerCase() === key), open };
         })
         .filter((x): x is { role: string; row: PersonRow; open: number } => !!x.row || x.open > 0),
-    [roleRecords, filtered, dataset, roles, key],
+    [roleRecords, filtered, dataset, roles, key, filters],
   );
   const kpiLines = useMemo(
     () =>

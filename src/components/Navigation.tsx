@@ -15,6 +15,7 @@ export const NAV: { id: Route; label: string; icon: IconName; group: 'Overview' 
   { id: 'gov-tasks', label: 'Ad-Hoc Tasks', icon: 'clipboard', group: 'Governance' },
   { id: 'gov-projects', label: 'REVAMP Projects', icon: 'folder', group: 'Governance' },
   { id: 'reports', label: 'Reports', icon: 'report', group: 'Data' },
+  { id: 'sheets', label: 'All Sheets', icon: 'database', group: 'Data' },
   { id: 'people', label: 'Team Members', icon: 'userCheck', group: 'Data' },
   { id: 'settings', label: 'Settings', icon: 'settings', group: 'Data' },
 ];

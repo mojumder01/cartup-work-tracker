@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Route } from '../types';
 
-const ROUTES: Route[] = ['dashboard', 'work', 'kpi', 'team', 'upload', 'qc', 'visual', 'reports', 'people', 'settings', 'gov-tasks', 'gov-projects'];
+const ROUTES: Route[] = ['dashboard', 'work', 'kpi', 'team', 'upload', 'qc', 'visual', 'reports', 'people', 'settings', 'gov-tasks', 'gov-projects', 'sheets'];
 
 const read = (): Route => {
   const r = window.location.hash.replace(/^#\/?/, '').split('?')[0] as Route;

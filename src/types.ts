@@ -131,7 +131,7 @@ export interface KpiReport {
   headlineParts: { section: string; metric: string; pct: number }[];
 }
 
-export type Route = 'dashboard' | 'work' | 'kpi' | 'team' | 'upload' | 'qc' | 'visual' | 'reports' | 'people' | 'settings' | 'gov-tasks' | 'gov-projects';
+export type Route = 'dashboard' | 'work' | 'kpi' | 'team' | 'upload' | 'qc' | 'visual' | 'reports' | 'people' | 'settings' | 'gov-tasks' | 'gov-projects' | 'sheets';
 
 /** One tab of an extra Google Sheet, as published by the sync. */
 export interface ExtraTable extends FlatTable {
