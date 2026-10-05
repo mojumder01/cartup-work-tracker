@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import { scriptRead, withAnyUrl } from '../services/scriptApi';
 import { exportXlsx, stamp } from '../utils/export';
+import { Waiting } from '../components/Waiting';
 
 type Cell = string | number | null;
 type Row = Record<string, Cell>;
@@ -162,6 +163,7 @@ export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[];
           ))}
         </select>
       </label>
+      {name && <Waiting active={busy} label={`Loading ${name}'s tasks from the Work Sheet`} />}
       {err && <div className="tf-msg bad">{err}</div>}
       {name && (
         <>

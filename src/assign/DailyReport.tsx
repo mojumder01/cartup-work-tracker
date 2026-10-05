@@ -21,6 +21,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { scriptRead, withAnyUrl } from '../services/scriptApi';
 import { exportXlsxSheets, type ExportRow } from '../utils/export';
+import { Waiting } from '../components/Waiting';
 
 type Cell = string | number | null;
 type Row = Record<string, Cell>;
@@ -255,6 +256,7 @@ export function DailyReport({ urls }: { urls: string[] }) {
               </button>
             ))}
           </div>
+          <Waiting active={loading} label="Counting from Google Sheets" done="Counted" />
           <textarea
             className="input ab-daily-text"
             rows={6}

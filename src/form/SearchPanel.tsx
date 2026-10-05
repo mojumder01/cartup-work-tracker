@@ -1,6 +1,7 @@
 /** Read-only JOB search for employees: JOB ID, Seller Code or shop name → who is doing what. */
 import { useState, type FormEvent } from 'react';
 import { scriptRead, withAnyUrl } from '../services/scriptApi';
+import { Waiting } from '../components/Waiting';
 
 const COLUMNS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'KAM', 'Number of SKU', 'Status', 'Uploaded by', 'Uploaded SKU Count', 'Upload date', 'QC By', 'QC Status', 'Visual editor', 'Image Status', 'Image count', 'Comments'];
 
@@ -60,6 +61,7 @@ export function SearchPanel({ urls, onUpdate }: { urls: string[]; onUpdate: (job
             {busy ? 'Searching…' : 'Search'}
           </button>
         </div>
+        <Waiting active={busy} label="Searching the Work Sheet" done="Searched" />
         {err && <div className="tf-msg bad">{err}</div>}
         {res && res.results.length === 0 && <div className="tf-msg warn">Nothing found for “{q.trim()}”.</div>}
         {res && res.total > res.results.length && (
