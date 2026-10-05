@@ -108,24 +108,49 @@ export async function scriptRead(url: string, p: ReadParams): Promise<ReadResult
   };
 }
 
+/** Result of the Microsoft Teams message sent with a Task board assignment (script 2.1.8+). */
+export interface NotifyResult {
+  ok: boolean;
+  sent?: boolean;
+  messages?: number;
+  reason?: string;
+}
+
 export async function scriptWrite(url: string, by: string, ops: WriteOp[]): Promise<WriteResult[]> {
+  return (await scriptWriteNotify(url, by, ops)).results;
+}
+
+/**
+ * scriptWrite + optional notify:{ field, link } → the script posts the jobs whose `field` it just wrote to
+ * Microsoft Teams. `notify` is null when the deployed script is too old to know about it.
+ */
+export async function scriptWriteNotify(
+  url: string,
+  by: string,
+  ops: WriteOp[],
+  notify?: { field: string; link?: string },
+): Promise<{ results: WriteResult[]; notify: NotifyResult[] | null }> {
   const out: WriteResult[] = [];
+  const notes: NotifyResult[] = [];
+  let old = false;
   for (let i = 0; i < ops.length; i += 200) {
     const res = await call(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'write', by, ops: ops.slice(i, i + 200) }),
+      body: JSON.stringify({ action: 'write', by, ops: ops.slice(i, i + 200), ...(notify ? { notify } : {}) }),
     });
     if (!res.ok) throw new Error(`The Google Sheets service returned HTTP ${res.status}.`);
-    const j = await readAppsScriptJson<{ ok: boolean; error?: string; results?: WriteResult[] }>(res);
+    const j = await readAppsScriptJson<{ ok: boolean; error?: string; results?: WriteResult[]; notify?: NotifyResult }>(res);
     if (!j.ok) {
       if (looksOld(j.error ?? '')) throw new OldScriptError();
       throw new Error(j.error || 'The change was rejected.');
     }
     if (!Array.isArray(j.results)) throw new OldScriptError();
     out.push(...j.results);
+    if (j.notify) notes.push(j.notify);
+    else if (notify) old = true;
   }
-  return out;
+  return { results: out, notify: notify ? (old && !notes.length ? null : notes) : [] };
 }
 
 /** Try each Web app URL until one runs the current script. Returns the result and the URL that worked. */

@@ -226,6 +226,19 @@ Each job row shows JOB ID, Shop, **Seller Code** (column N), **Note** (column L)
 - **QC tab cards:** **QC Pending (uploaded)** and **QC Done** replace Pending, Running, Done and Rejected.
 - **What each tab loads:** its own unfinished work, so QC sees every uploaded job waiting for QC.
 
+### Microsoft Teams message on assign (Task board)
+
+When **message Teams** is ticked in the assign bar (it is on by default), clicking **Assign** posts one card to your Teams channel. The card says "📌 New Upload/Image editing/QC task(s) for <person>" and shows the job count, total SKUs, who assigned them and when. Below that is a table of JOB ID, Shop, Seller Code and SKU (up to 40 rows), plus an **Open Job desk** button. The result box under the board says whether the message was sent and, if not, why.
+
+The card is built by the Apps Script from the Work Sheet, and only for jobs it actually assigned in that click. Jobs kept with their current person are left out. The website cannot post any other text.
+
+**Setup (once, needs Apps Script 2.1.8 or later):**
+1. In Teams, open the channel → **•••** → **Workflows** → **Post to a channel when a webhook request is received**. Pick the team and channel, then copy the URL it gives.
+2. In the Apps Script project: **Project Settings → Script Properties → Add property**. Set `TEAMS_WEBHOOK` to that URL and save. The link stays in the script and is never in the website or on GitHub.
+3. Paste the new Code.gs, save, then **Deploy → Manage deployments → ✏️ → Version: New version → Deploy**.
+
+Settings → Connections shows "Teams message on assign ready" once the property is set.
+
 ### Daily report message (Task board)
 
 Open **Daily report message** on the Task board and pick a day. There are two messages: **Production report** and **QC report**. You can edit either one before copying it.

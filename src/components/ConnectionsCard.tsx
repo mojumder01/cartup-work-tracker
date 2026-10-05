@@ -36,7 +36,7 @@ export function ConnectionsCard() {
     }
     window.location.reload();
   };
-  const [ping, setPing] = useState<{ ok: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; commercial?: boolean; commercialError?: string; account?: string; version?: string; error?: string } | null>(null);
+  const [ping, setPing] = useState<{ ok: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; commercial?: boolean; commercialError?: string; teams?: boolean; account?: string; version?: string; error?: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const repoUrl = BUILD.repo ? `https://github.com/${BUILD.repo}` : null;
 
@@ -201,6 +201,9 @@ export function ConnectionsCard() {
           <Ok ok={url && ping ? !!ping.sync : false}>Update data button {ping?.sync ? 'ready' : 'needs GitHub token'}</Ok>
           {ping?.ok && ping.sheet !== undefined && (
             <Ok ok={!!ping.sheet}>Governance sheet {ping.sheet ? 'writable' : 'NOT accessible'}{ping.account ? ` · runs as ${ping.account}` : ''}</Ok>
+          )}
+          {ping?.ok && (
+            <Ok ok={!!ping.teams}>Teams message on assign {ping.teams ? 'ready' : 'needs TEAMS_WEBHOOK'}</Ok>
           )}
         </div>
         {ping && !ping.ok && ping.error && <p style={{ color: 'var(--bad)', fontSize: 13, marginTop: 0 }}>{ping.error}</p>}

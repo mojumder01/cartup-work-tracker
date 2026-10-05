@@ -21,9 +21,13 @@
  *
  * Optional — "Update data" button: Project Settings → Script Properties →
  *   GITHUB_TOKEN = fine-grained token (only this repo, "Actions: Read and write"), GITHUB_REPO = owner/repo.
+ *
+ * Optional — Microsoft Teams message when the Task board assigns jobs: in the Teams channel → ••• →
+ *   Workflows → "Post to a channel when a webhook request is received" → copy the URL, then add the
+ *   Script Property TEAMS_WEBHOOK = that URL. The link stays here; the website never sees it.
  */
 
-var SCRIPT_VERSION = '2.1.7';
+var SCRIPT_VERSION = '2.1.8';
 
 var WORK_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
 var GOVERNANCE_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
@@ -356,7 +360,8 @@ function mirror_(W, row, cache) {
  *   { sheet:'projects', op:'append', set:{ 'Project ID':'PRJ-…', … } },
  *   { sheet:'progress', op:'delete', key:'LOG-…' } ] }
  * Work Sheet updates with mirror:true also copy the changed cells to the Content/Commercial tab (COMMERCIAL_MAP).
- * → { ok, results:[{ ok, key, written:[…], skipped:[{field, reason}], reason?, duplicate?, mirror? }] }
+ * notify:{ field, link? } posts the new assignments to Microsoft Teams (see notifyAssign_).
+ * → { ok, notify?, results:[{ ok, key, written:[…], skipped:[{field, reason}], reason?, duplicate?, mirror? }] }
  */
 function write_(body, nowDate) {
   var by = str_(body.by, 60);
@@ -439,12 +444,80 @@ function write_(body, nowDate) {
       return { ok: false, key: key, reason: String(err && err.message ? err.message : err) };
     }
   });
+  var notice = body.notify ? notifyAssign_(body.notify, by, results, layouts.work) : undefined;
   if (logRows.length) {
     var lg = tab_(SHEETS.log, true);
     if (!String(lg.getRange(1, 1).getValue())) lg.getRange(1, 1, 1, FORM_LOG_HEADERS.length).setValues([FORM_LOG_HEADERS]).setFontWeight('bold');
     lg.getRange(lg.getLastRow() + 1, 1, logRows.length, FORM_LOG_HEADERS.length).setValues(logRows);
   }
-  return { ok: true, results: results };
+  return { ok: true, results: results, notify: notice };
+}
+
+// ---- Microsoft Teams message for Task board assignments -------------------------------
+
+var ASSIGN_ROLES = { 'uploaded by': 'Upload', 'visual editor': 'Image editing', 'qc by': 'QC' };
+
+/**
+ * After a write with notify:{ field:'Uploaded by'|'Visual editor'|'QC By', link? }, posts ONE card to the
+ * Teams channel (Script Property TEAMS_WEBHOOK) for the jobs whose `field` was actually written in this
+ * request. The text comes from the Work Sheet, not from the website, so the endpoint can't post anything else.
+ */
+function notifyAssign_(n, by, results, L) {
+  var hook = prop_('TEAMS_WEBHOOK');
+  if (!hook) return { ok: false, reason: 'TEAMS_WEBHOOK is not set in the Apps Script project properties.' };
+  var field = String(n.field || '');
+  var role = ASSIGN_ROLES[field.toLowerCase()];
+  if (!role) return { ok: false, reason: 'Unknown role "' + field + '"' };
+  var keys = results.filter(function (r) { return r.ok && (r.written || []).some(function (w) { return w.toLowerCase() === field.toLowerCase(); }); })
+    .map(function (r) { return r.key; });
+  if (!keys.length || !L) return { ok: true, sent: false, reason: 'nothing new was assigned' };
+
+  var cell = function (row, name) { var c = L.col(name); return c ? String(norm_(L.sh.getRange(row, c).getValue(), L.tz)) : ''; };
+  var groups = {}; // assignee → jobs
+  var order = [];
+  keys.forEach(function (k) {
+    var row = findRow_(L, k);
+    if (row < 0) return;
+    var who = cell(row, field) || '?';
+    if (!groups[who]) { groups[who] = []; order.push(who); }
+    groups[who].push({ id: k, shop: cell(row, 'Shop Name'), seller: cell(row, 'Seller Code'), sku: cell(row, 'Number of SKU') });
+  });
+  var link = /^https:\/\/[\w.-]+\.github\.io\/[\w./-]*$/.test(String(n.link || '')) ? String(n.link) : '';
+  var txt = function (v, max) { return String(v || '').replace(/[\r\n]+/g, ' ').slice(0, max || 80); };
+
+  var sent = 0;
+  var errors = [];
+  order.forEach(function (who) {
+    var jobs = groups[who];
+    var skus = jobs.reduce(function (a, j) { return a + (Number(String(j.sku).replace(/,/g, '')) || 0); }, 0);
+    var col = function (items, w) { return { type: 'Column', width: w, items: items }; };
+    var line = function (j, head) {
+      var t = function (v) { return { type: 'TextBlock', text: v, wrap: false, weight: head ? 'Bolder' : 'Default', size: 'Small', isSubtle: !!head }; };
+      return { type: 'ColumnSet', spacing: 'Small', separator: !!head, columns: [col([t(j.id)], 'auto'), col([t(j.shop || '—')], 'stretch'), col([t(j.seller || '—')], 'auto'), col([t(j.sku || '—')], 'auto')] };
+    };
+    var shown = jobs.slice(0, 40);
+    var body = [
+      { type: 'TextBlock', size: 'Medium', weight: 'Bolder', wrap: true, text: '📌 New ' + role + ' task' + (jobs.length > 1 ? 's' : '') + ' for ' + txt(who, 60) },
+      { type: 'TextBlock', spacing: 'None', isSubtle: true, wrap: true,
+        text: jobs.length + ' job' + (jobs.length > 1 ? 's' : '') + (skus ? ' · ' + skus.toLocaleString('en-US') + ' SKUs' : '') + ' · assigned by ' + txt(by, 60) + ' · ' + Utilities.formatDate(new Date(), L.tz, 'd MMM yyyy, h:mm a') },
+      line({ id: 'JOB ID', shop: 'Shop', seller: 'Seller Code', sku: 'SKU' }, true),
+    ].concat(shown.map(function (j) { return line({ id: j.id, shop: txt(j.shop, 60), seller: txt(j.seller, 30), sku: txt(j.sku, 10) }); }));
+    if (jobs.length > shown.length) body.push({ type: 'TextBlock', isSubtle: true, size: 'Small', text: '+ ' + (jobs.length - shown.length) + ' more' });
+    var card = { $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', type: 'AdaptiveCard', version: '1.4', msteams: { width: 'Full' }, body: body };
+    if (link) card.actions = [{ type: 'Action.OpenUrl', title: 'Open Job desk', url: link }];
+    try {
+      var res = UrlFetchApp.fetch(hook, {
+        method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+        payload: JSON.stringify({ type: 'message', attachments: [{ contentType: 'application/vnd.microsoft.card.adaptive', contentUrl: null, content: card }] }),
+      });
+      var code = res.getResponseCode();
+      if (code >= 200 && code < 300) sent++;
+      else errors.push('Teams returned HTTP ' + code + (code === 404 || code === 401 || code === 403 ? ' — check the TEAMS_WEBHOOK link' : ''));
+    } catch (e) {
+      errors.push(String(e && e.message ? e.message : e));
+    }
+  });
+  return errors.length ? { ok: false, sent: sent > 0, reason: errors[0] } : { ok: true, sent: true, messages: sent };
 }
 
 // ---- entry points -------------------------------------------------------------------
@@ -459,7 +532,7 @@ function doGet(e) {
       var comErr = check(SHEETS.commercial);
       var govErr = (function () { try { SpreadsheetApp.openById(GOVERNANCE_ID); return null; } catch (err) { return 'The Apps Script runs as ' + account_() + ', and that account cannot open the Governance sheet. Share it with ' + account_() + ' as Editor.'; } })();
       return json_({ ok: true, version: SCRIPT_VERSION, account: account_(), sync: !!github_(),
-        work: !workErr, workError: workErr, sheet: !govErr, sheetError: govErr, commercial: !comErr, commercialError: comErr });
+        work: !workErr, workError: workErr, sheet: !govErr, sheetError: govErr, commercial: !comErr, commercialError: comErr, teams: !!prop_('TEAMS_WEBHOOK') });
     }
     if (action === 'read') return json_(read_(p));
     if (action === 'syncStatus') return json_(syncStatus_());

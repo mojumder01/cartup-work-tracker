@@ -9,7 +9,7 @@ import { BuiltBy } from '../components/BuiltBy';
 import { makeIsLeft } from '../services/leftPeople';
 import { DailyReport } from './DailyReport';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { scriptRead, scriptWrite, withAnyUrl, type WriteOp } from '../services/scriptApi';
+import { scriptRead, scriptWriteNotify, withAnyUrl, type WriteOp } from '../services/scriptApi';
 
 const QUEUE_COLUMNS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'KAM', 'L1 Category', 'Number of SKU', 'Status', 'Uploaded by', 'Uploaded SKU Count', 'Upload date', 'Visual editor', 'Image Status', 'Image Delivered Date', 'QC By', 'QC Status', 'QC approved date', 'Approved QC Count', 'Rejected QC Count'];
 import { localAppsScriptUrl } from '../services/appsScriptUrl';
@@ -137,6 +137,10 @@ export function AssignForm() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [assignee, setAssignee] = useState('');
+  // Post new assignments to the Microsoft Teams channel (script property TEAMS_WEBHOOK).
+  const [teamsPref, setTeamsPref] = useStored('cartup.teamsNotify', '1');
+  const teams = teamsPref === '1';
+  const [teamsMsg, setTeamsMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [setRunning, setSetRunning] = useState(true);
   const [overwrite, setOverwrite] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -310,6 +314,7 @@ export function AssignForm() {
     setBusy(true);
     setErr(null);
     setResults(null);
+    setTeamsMsg(null);
     try {
       // Decide per job here: keep someone already assigned unless "replace existing" is ticked.
       const out: Result[] = [];
@@ -330,7 +335,21 @@ export function AssignForm() {
         // expect = what this board showed; the script refuses the row if it changed since.
         ops.push({ sheet: 'work', op: 'update', key: id, set, expect: { [field]: j[field] ?? null, Status: j.Status ?? null } });
       }
-      const res = ops.length ? await scriptWrite(candidates[0], lead.trim(), ops) : [];
+      const link = new URL('form.html', window.location.href).href.split(/[?#]/)[0];
+      const sent = ops.length ? await scriptWriteNotify(candidates[0], lead.trim(), ops, teams ? { field, link } : undefined) : { results: [], notify: [] };
+      const res = sent.results;
+      if (teams && ops.length) {
+        const n = sent.notify;
+        setTeamsMsg(
+          n === null
+            ? { ok: false, text: 'Teams message NOT sent — the deployed Apps Script is older than 2.1.8. Update it (Settings → Connections → Copy script → paste → Deploy → New version).' }
+            : n.some((x) => !x.ok)
+              ? { ok: false, text: `Teams message NOT sent — ${n.find((x) => !x.ok)?.reason ?? 'unknown error'}` }
+              : n.some((x) => x.sent)
+                ? { ok: true, text: `Message sent to Teams for ${assignee}.` }
+                : { ok: true, text: 'No Teams message — nothing new was assigned.' },
+        );
+      } else setTeamsMsg(null);
       for (const r of res) {
         out.push({
           jobId: r.key,
@@ -622,12 +641,13 @@ export function AssignForm() {
             <div className={`tf-msg ${issues.length ? 'warn' : 'good'}`}>
               Assigned {okCount} job(s) in the Work Sheet{issues.length ? ` · ${issues.length} need attention:` : '.'}
             </div>
+            {teamsMsg && <div className={`tf-msg ${teamsMsg.ok ? 'good' : 'warn'}`}>{teamsMsg.text}</div>}
             {issues.map((r) => (
               <div key={r.jobId} className="tf-hint">
                 <b>{r.jobId}</b>: {!r.ok ? r.reason : r.skipped?.length ? `kept — ${r.skipped.join('; ')}` : 'already assigned to this person'}
               </div>
             ))}
-            <button type="button" className="btn btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => setResults(null)}>
+            <button type="button" className="btn btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => (setResults(null), setTeamsMsg(null))}>
               OK
             </button>
           </div>
@@ -658,6 +678,9 @@ export function AssignForm() {
           )}
           <label className="ab-check" title="Replace a different person who is already assigned">
             <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} /> replace existing
+          </label>
+          <label className="ab-check" title="Post the assigned jobs to the Microsoft Teams channel">
+            <input type="checkbox" checked={teams} onChange={(e) => setTeamsPref(e.target.checked ? '1' : '0')} /> message Teams
           </label>
           {alreadyAssigned > 0 && !overwrite && <span className="ab-warn">{alreadyAssigned} already have someone — they will be kept</span>}
           <button type="button" className="btn btn-primary" onClick={assign} disabled={busy || !assignee}>
