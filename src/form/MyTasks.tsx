@@ -2,7 +2,7 @@
  * "My tasks" on the Job desk: pick your name → how many of your jobs are Pending / Running
  * (upload), plus image and QC work still in hand, with the list.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import { scriptRead, withAnyUrl } from '../services/scriptApi';
 
 type Cell = string | number | null;
@@ -16,6 +16,47 @@ const ageDays = (v: Cell | undefined) => {
   const m = t(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? Math.max(0, Math.floor((Date.now() - new Date(+m[1], +m[2] - 1, +m[3]).getTime()) / 86400000)) : null;
 };
+
+function copyText(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+  return fallbackCopy(text);
+}
+function fallbackCopy(text: string): Promise<void> {
+  const box = document.createElement('textarea');
+  box.value = text;
+  box.setAttribute('readonly', '');
+  box.style.position = 'fixed';
+  box.style.opacity = '0';
+  document.body.appendChild(box);
+  box.select();
+  const ok = document.execCommand('copy');
+  box.remove();
+  return ok ? Promise.resolve() : Promise.reject(new Error('copy failed'));
+}
+
+/** A table cell with a small copy button that shows on hover (always visible on touch screens). */
+function CopyCell({ text, className, title, children }: { text: string; className?: string; title?: string; children?: ReactNode }) {
+  const [done, setDone] = useState<'ok' | 'bad' | null>(null);
+  const copy = (e: MouseEvent) => {
+    e.stopPropagation(); // don't open the job
+    copyText(text)
+      .then(() => setDone('ok'))
+      .catch(() => setDone('bad'))
+      .finally(() => setTimeout(() => setDone(null), 1200));
+  };
+  return (
+    <span className={`mt-cell ${className ?? ''}`}>
+      <span className="mt-val" title={title}>
+        {children ?? (text || '—')}
+      </span>
+      {text && (
+        <button type="button" className={`mt-copy ${done ?? ''}`} onClick={copy} onKeyDown={(e) => e.stopPropagation()} title={`Copy “${text.length > 60 ? text.slice(0, 60) + '…' : text}”`} aria-label="Copy">
+          {done === 'ok' ? '✓' : done === 'bad' ? '!' : '⧉'}
+        </button>
+      )}
+    </span>
+  );
+}
 
 export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[]; people: string[]; who: string; onPick: (name: string) => void; onOpen: (jobId: string) => void }) {
   const [name, setName] = useState(() => (people.some((p) => same(p, who)) ? people.find((p) => same(p, who))! : ''));
@@ -120,6 +161,7 @@ export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[];
               <div className="mt-row mt-head" aria-hidden="true">
                 <span>JOB ID</span>
                 <span>Shop</span>
+                <span>Seller Code</span>
                 <span>Note</span>
                 <span>SKU</span>
                 <span>Age</span>
@@ -130,6 +172,8 @@ export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[];
                 const id = t(r['JOB ID']);
                 const link = t(r['Google drive link']);
                 const href = /^https?:\/\//i.test(link) ? link : '';
+                const age = ageDays(r.Timestamp);
+                const status = part === 'Image' ? t(r['Image Status']) || 'Not delivered' : part === 'QC' ? t(r['QC Status']) || 'QC pending' : t(r.Status) || 'Pending';
                 return (
                   <div
                     key={id}
@@ -140,14 +184,17 @@ export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[];
                     onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen(id))}
                     title="Open in “Update my task”"
                   >
-                    <b>{id}</b>
-                    <span className="mt-shop">{t(r['Shop Name']) || '—'}</span>
-                    <span className="mt-note" title={t(r.Note)}>
-                      {t(r.Note) || '—'}
-                    </span>
-                    <span className="muted">{t(r['Number of SKU']) || '—'}</span>
-                    <span className="muted">{ageDays(r.Timestamp) !== null ? `${ageDays(r.Timestamp)}d` : ''}</span>
-                    <span>
+                    <CopyCell text={id}>
+                      <b>{id}</b>
+                    </CopyCell>
+                    <CopyCell className="mt-shop" text={t(r['Shop Name'])} title={t(r['Shop Name'])} />
+                    <CopyCell className="mt-seller" text={t(r['Seller Code'])} />
+                    <CopyCell className="mt-note" text={t(r.Note)} title={t(r.Note)} />
+                    <CopyCell className="muted" text={t(r['Number of SKU'])} />
+                    <CopyCell className="muted" text={age !== null ? `${age}d` : ''}>
+                      {age !== null ? `${age}d` : ''}
+                    </CopyCell>
+                    <CopyCell text={link}>
                       {href ? (
                         <a href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title={href}>
                           Open ↗
@@ -155,8 +202,8 @@ export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[];
                       ) : (
                         <span className="muted">{link || '—'}</span>
                       )}
-                    </span>
-                    <span className="mt-st">{part === 'Image' ? t(r['Image Status']) || 'Not delivered' : part === 'QC' ? t(r['QC Status']) || 'QC pending' : t(r.Status) || 'Pending'}</span>
+                    </CopyCell>
+                    <CopyCell className="mt-st" text={status} />
                   </div>
                 );
               })}
