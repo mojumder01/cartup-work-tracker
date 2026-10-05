@@ -13,6 +13,7 @@ import { asDate, asMonth, scriptRead, scriptWrite, withAnyUrl, type WriteValue }
 
 const JOB_COLUMNS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'KAM', 'Number of SKU', 'Status', 'Uploaded by', 'Uploaded SKU Count', 'Rejected SKU Count', 'Upload date', 'Upload Month', 'QC By', 'QC Status', 'Visual editor', 'Image Status', 'Image count', 'Comments'];
 import { localAppsScriptUrl } from '../services/appsScriptUrl';
+import { Waiting } from '../components/Waiting';
 
 type Cell = string | number | null;
 interface Job {
@@ -367,6 +368,7 @@ export function TaskForm() {
               {checking ? 'Checking…' : 'Check'}
             </button>
           </form>
+          <Waiting active={checking} label="Finding the job in the Work Sheet" done="Checked" />
           {lookupError && <div className="tf-msg bad">{lookupError}</div>}
           {lookup && !lookup.found && <div className="tf-msg bad">JOB ID {lookup.id} was not found in the Work Sheet. Check the ID and try again.</div>}
           {job && (
@@ -477,6 +479,7 @@ export function TaskForm() {
                 {busy ? 'Saving…' : mirror ? 'Save to both sheets' : 'Save to Work Sheet'}
               </button>
             </div>
+            <Waiting active={busy} label={mirror ? 'Saving to both Google Sheets' : 'Saving to the Work Sheet'} done="Saved" />
           </form>
         )}
           </>

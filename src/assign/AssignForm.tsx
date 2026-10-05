@@ -13,6 +13,7 @@ import { scriptRead, scriptWriteNotify, withAnyUrl, type WriteOp } from '../serv
 
 const QUEUE_COLUMNS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'KAM', 'L1 Category', 'Number of SKU', 'Status', 'Uploaded by', 'Uploaded SKU Count', 'Upload date', 'Visual editor', 'Image Status', 'Image Delivered Date', 'QC By', 'QC Status', 'QC approved date', 'Approved QC Count', 'Rejected QC Count'];
 import { localAppsScriptUrl } from '../services/appsScriptUrl';
+import { Waiting } from '../components/Waiting';
 
 type Cell = string | number | null;
 type Job = Record<string, Cell>;
@@ -406,6 +407,7 @@ export function AssignForm() {
         </div>
 
         {cfg && !candidates.length && <div className="tf-msg bad">Not connected: the Apps Script Web app URL is missing.</div>}
+        <Waiting active={loading} label="Loading jobs from the Work Sheet" />
         {err && <div className="tf-msg bad">{err}</div>}
 
         {candidates.length > 0 && <DailyReport urls={candidates} />}
@@ -685,6 +687,7 @@ export function AssignForm() {
           <button type="button" className="btn btn-primary" onClick={assign} disabled={busy || !assignee}>
             {busy ? 'Assigning…' : `Assign ${selected.size}`}
           </button>
+          <Waiting inline active={busy} label="Saving to the Work Sheet" done="Assigned" />
         </div>
       )}
     </div>

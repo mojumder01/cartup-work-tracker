@@ -211,6 +211,13 @@ The script still enforces these rules:
 - **Both sheets:** both changes are also copied to Content/Commercial when "Also update" is ticked.
 - **Needs Apps Script 2.1.6 or later**, which allows Number of SKU to be written.
 
+### Waiting indicator (Job desk and Task board)
+
+Every Google Sheets call on the Job desk and Task board shows a loading bar with a live seconds counter, for example "Loading Nafim's tasks from the Work Sheet… 4 s". This covers loading My tasks, search, checking a JOB ID, saving, loading the board, assigning, and counting the daily report.
+- **After 8 seconds:** the bar adds "Google Sheets is a bit slow right now — please wait, this usually takes 5–20 seconds".
+- **After 45 seconds:** it suggests checking the connection.
+- **When done:** it shows how long the call took, e.g. "Loaded in 3.4 s" or "Saved in 2.1 s".
+
 ### My tasks (Job desk)
 
 On the Job desk's **Search** tab, an employee picks their name and sees:
