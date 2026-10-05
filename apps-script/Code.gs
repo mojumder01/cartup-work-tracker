@@ -25,9 +25,10 @@
  * Optional — Microsoft Teams message when the Task board assigns jobs: in the Teams channel → ••• →
  *   Workflows → "Post to a channel when a webhook request is received" → copy the URL, then add the
  *   Script Property TEAMS_WEBHOOK = that URL. The link stays here; the website never sees it.
+ *   For real @mentions add TEAMS_PEOPLE = {"Name":"teams-sign-in@email", …}; without it the name is plain "@Name".
  */
 
-var SCRIPT_VERSION = '2.1.8';
+var SCRIPT_VERSION = '2.1.9';
 
 var WORK_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
 var GOVERNANCE_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
@@ -360,7 +361,7 @@ function mirror_(W, row, cache) {
  *   { sheet:'projects', op:'append', set:{ 'Project ID':'PRJ-…', … } },
  *   { sheet:'progress', op:'delete', key:'LOG-…' } ] }
  * Work Sheet updates with mirror:true also copy the changed cells to the Content/Commercial tab (COMMERCIAL_MAP).
- * notify:{ field, link? } posts the new assignments to Microsoft Teams (see notifyAssign_).
+ * notify:{ field } posts the new assignments to Microsoft Teams (see notifyAssign_).
  * → { ok, notify?, results:[{ ok, key, written:[…], skipped:[{field, reason}], reason?, duplicate?, mirror? }] }
  */
 function write_(body, nowDate) {
@@ -458,16 +459,15 @@ function write_(body, nowDate) {
 var ASSIGN_ROLES = { 'uploaded by': 'Upload', 'visual editor': 'Image editing', 'qc by': 'QC' };
 
 /**
- * After a write with notify:{ field:'Uploaded by'|'Visual editor'|'QC By', link? }, posts ONE card to the
- * Teams channel (Script Property TEAMS_WEBHOOK) for the jobs whose `field` was actually written in this
- * request. The text comes from the Work Sheet, not from the website, so the endpoint can't post anything else.
+ * After a write with notify:{ field:'Uploaded by'|'Visual editor'|'QC By' }, posts a short message per person to
+ * the Teams channel (Script Property TEAMS_WEBHOOK): "@Name" and the JOB IDs whose `field` was actually written
+ * in this request. The text comes from the Work Sheet, not from the website, so the endpoint can't post anything else.
  */
 function notifyAssign_(n, by, results, L) {
   var hook = prop_('TEAMS_WEBHOOK');
   if (!hook) return { ok: false, reason: 'TEAMS_WEBHOOK is not set in the Apps Script project properties.' };
   var field = String(n.field || '');
-  var role = ASSIGN_ROLES[field.toLowerCase()];
-  if (!role) return { ok: false, reason: 'Unknown role "' + field + '"' };
+  if (!ASSIGN_ROLES[field.toLowerCase()]) return { ok: false, reason: 'Unknown role "' + field + '"' };
   var keys = results.filter(function (r) { return r.ok && (r.written || []).some(function (w) { return w.toLowerCase() === field.toLowerCase(); }); })
     .map(function (r) { return r.key; });
   if (!keys.length || !L) return { ok: true, sent: false, reason: 'nothing new was assigned' };
@@ -480,31 +480,25 @@ function notifyAssign_(n, by, results, L) {
     if (row < 0) return;
     var who = cell(row, field) || '?';
     if (!groups[who]) { groups[who] = []; order.push(who); }
-    groups[who].push({ id: k, shop: cell(row, 'Shop Name'), seller: cell(row, 'Seller Code'), sku: cell(row, 'Number of SKU') });
+    groups[who].push({ id: k });
   });
-  var link = /^https:\/\/[\w.-]+\.github\.io\/[\w./-]*$/.test(String(n.link || '')) ? String(n.link) : '';
-  var txt = function (v, max) { return String(v || '').replace(/[\r\n]+/g, ' ').slice(0, max || 80); };
+  var txt = function (v, max) { return String(v || '').replace(/[\r\n<>]+/g, ' ').slice(0, max || 80); };
+  // Optional real @mentions: Script Property TEAMS_PEOPLE = {"Iftakhar":"iftakhar@company.com", …} (Teams sign-in emails).
+  var emails = {};
+  try { var raw = JSON.parse(prop_('TEAMS_PEOPLE') || '{}'); Object.keys(raw).forEach(function (k) { emails[k.trim().toLowerCase()] = String(raw[k]).trim(); }); } catch (e) { /* ignore a bad JSON */ }
 
   var sent = 0;
   var errors = [];
   order.forEach(function (who) {
-    var jobs = groups[who];
-    var skus = jobs.reduce(function (a, j) { return a + (Number(String(j.sku).replace(/,/g, '')) || 0); }, 0);
-    var col = function (items, w) { return { type: 'Column', width: w, items: items }; };
-    var line = function (j, head) {
-      var t = function (v) { return { type: 'TextBlock', text: v, wrap: false, weight: head ? 'Bolder' : 'Default', size: 'Small', isSubtle: !!head }; };
-      return { type: 'ColumnSet', spacing: 'Small', separator: !!head, columns: [col([t(j.id)], 'auto'), col([t(j.shop || '—')], 'stretch'), col([t(j.seller || '—')], 'auto'), col([t(j.sku || '—')], 'auto')] };
-    };
-    var shown = jobs.slice(0, 40);
-    var body = [
-      { type: 'TextBlock', size: 'Medium', weight: 'Bolder', wrap: true, text: '📌 New ' + role + ' task' + (jobs.length > 1 ? 's' : '') + ' for ' + txt(who, 60) },
-      { type: 'TextBlock', spacing: 'None', isSubtle: true, wrap: true,
-        text: jobs.length + ' job' + (jobs.length > 1 ? 's' : '') + (skus ? ' · ' + skus.toLocaleString('en-US') + ' SKUs' : '') + ' · assigned by ' + txt(by, 60) + ' · ' + Utilities.formatDate(new Date(), L.tz, 'd MMM yyyy, h:mm a') },
-      line({ id: 'JOB ID', shop: 'Shop', seller: 'Seller Code', sku: 'SKU' }, true),
-    ].concat(shown.map(function (j) { return line({ id: j.id, shop: txt(j.shop, 60), seller: txt(j.seller, 30), sku: txt(j.sku, 10) }); }));
-    if (jobs.length > shown.length) body.push({ type: 'TextBlock', isSubtle: true, size: 'Small', text: '+ ' + (jobs.length - shown.length) + ' more' });
-    var card = { $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', type: 'AdaptiveCard', version: '1.4', msteams: { width: 'Full' }, body: body };
-    if (link) card.actions = [{ type: 'Action.OpenUrl', title: 'Open Job desk', url: link }];
+    // Short message: "@Name" then one JOB ID per line.
+    var name = txt(who, 60);
+    var email = emails[name.toLowerCase()];
+    var lines = groups[who].slice(0, 100).map(function (j) { return j.id; });
+    if (groups[who].length > lines.length) lines.push('+ ' + (groups[who].length - lines.length) + ' more');
+    var body = [{ type: 'TextBlock', weight: 'Bolder', wrap: true, text: email ? '<at>' + name + '</at>' : '@' + name }]
+      .concat(lines.map(function (l) { return { type: 'TextBlock', spacing: 'None', wrap: true, text: l }; }));
+    var card = { $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', type: 'AdaptiveCard', version: '1.4', body: body };
+    if (email) card.msteams = { entities: [{ type: 'mention', text: '<at>' + name + '</at>', mentioned: { id: email, name: name } }] };
     try {
       var res = UrlFetchApp.fetch(hook, {
         method: 'post', contentType: 'application/json', muteHttpExceptions: true,

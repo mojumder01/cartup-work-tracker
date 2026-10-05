@@ -137,8 +137,8 @@ export function AssignForm() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [assignee, setAssignee] = useState('');
-  // Post new assignments to the Microsoft Teams channel (script property TEAMS_WEBHOOK).
-  const [teamsPref, setTeamsPref] = useStored('cartup.teamsNotify', '1');
+  // Optional: post "@Name + JOB IDs" to the Microsoft Teams channel (script property TEAMS_WEBHOOK). Off by default.
+  const [teamsPref, setTeamsPref] = useStored('cartup.teamsMessage', '0');
   const teams = teamsPref === '1';
   const [teamsMsg, setTeamsMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [setRunning, setSetRunning] = useState(true);
@@ -335,14 +335,13 @@ export function AssignForm() {
         // expect = what this board showed; the script refuses the row if it changed since.
         ops.push({ sheet: 'work', op: 'update', key: id, set, expect: { [field]: j[field] ?? null, Status: j.Status ?? null } });
       }
-      const link = new URL('form.html', window.location.href).href.split(/[?#]/)[0];
-      const sent = ops.length ? await scriptWriteNotify(candidates[0], lead.trim(), ops, teams ? { field, link } : undefined) : { results: [], notify: [] };
+      const sent = ops.length ? await scriptWriteNotify(candidates[0], lead.trim(), ops, teams ? { field } : undefined) : { results: [], notify: [] };
       const res = sent.results;
       if (teams && ops.length) {
         const n = sent.notify;
         setTeamsMsg(
           n === null
-            ? { ok: false, text: 'Teams message NOT sent — the deployed Apps Script is older than 2.1.8. Update it (Settings → Connections → Copy script → paste → Deploy → New version).' }
+            ? { ok: false, text: 'Teams message NOT sent — the deployed Apps Script is older than 2.1.9. Update it (Settings → Connections → Copy script → paste → Deploy → New version).' }
             : n.some((x) => !x.ok)
               ? { ok: false, text: `Teams message NOT sent — ${n.find((x) => !x.ok)?.reason ?? 'unknown error'}` }
               : n.some((x) => x.sent)
@@ -679,7 +678,7 @@ export function AssignForm() {
           <label className="ab-check" title="Replace a different person who is already assigned">
             <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} /> replace existing
           </label>
-          <label className="ab-check" title="Post the assigned jobs to the Microsoft Teams channel">
+          <label className="ab-check" title="Optional: post @name and the JOB IDs to the Microsoft Teams channel">
             <input type="checkbox" checked={teams} onChange={(e) => setTeamsPref(e.target.checked ? '1' : '0')} /> message Teams
           </label>
           {alreadyAssigned > 0 && !overwrite && <span className="ab-warn">{alreadyAssigned} already have someone — they will be kept</span>}

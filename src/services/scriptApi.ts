@@ -121,14 +121,14 @@ export async function scriptWrite(url: string, by: string, ops: WriteOp[]): Prom
 }
 
 /**
- * scriptWrite + optional notify:{ field, link } → the script posts the jobs whose `field` it just wrote to
+ * scriptWrite + optional notify:{ field } → the script posts the jobs whose `field` it just wrote to
  * Microsoft Teams. `notify` is null when the deployed script is too old to know about it.
  */
 export async function scriptWriteNotify(
   url: string,
   by: string,
   ops: WriteOp[],
-  notify?: { field: string; link?: string },
+  notify?: { field: string },
 ): Promise<{ results: WriteResult[]; notify: NotifyResult[] | null }> {
   const out: WriteResult[] = [];
   const notes: NotifyResult[] = [];
