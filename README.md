@@ -215,10 +215,11 @@ The script still enforces these rules:
 
 On the Job desk's **Search** tab, an employee picks their name and sees:
 - **Upload pending** and **Upload running:** their jobs by Status;
+- **Upload done:** jobs with Status Done, newest first. The date filter uses the **Upload date** for this card, falling back to the request day;
 - **Images in hand:** not yet delivered;
 - **QC in hand:** not yet QC'd.
 
-Each job row shows JOB ID, Shop, **Seller Code** (column N), **Note** (column L), SKU, age, a **Google drive link** (column F; "Open ↗" opens it in a new tab) and Status. Hover over any cell to show a **copy** button (⧉ → ✓ when copied; the Drive cell copies the full link). On touch screens the button stays faintly visible. On a phone the table shows JOB ID, Shop and Seller Code; on a narrow desktop window it scrolls sideways. A **Requested from / to** calendar filters the counts and the list by the day the job was requested. Click a job (anywhere but a copy button or link) to open it in **Update my task**.
+Each job row shows JOB ID, Shop, **Seller Code** (column N), **Note** (column L), SKU, age, a **Google drive link** (column F; "Open ↗" opens it in a new tab) and Status. Hover over any cell to show a **copy** button (⧉ → ✓ when copied; the Drive cell copies the full link). On touch screens the button stays faintly visible. On a phone the table shows JOB ID, Shop and Seller Code; on a narrow desktop window it scrolls sideways. A **Requested from / to** calendar filters the counts and the list by the day the job was requested; for Upload done it uses the Upload date. **⬇ Export Excel** downloads the list on screen (the chosen card and dates, all rows) with JOB ID, requested date, Task Type, Shop, Seller Code, SKU, Uploaded SKU Count, Upload date, Note, Drive link, statuses and age. Click a job (anywhere but a copy button or link) to open it in **Update my task**.
 
 ### Task board filters
 
