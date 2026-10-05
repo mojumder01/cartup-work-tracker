@@ -203,10 +203,10 @@ export function ConnectionsCard() {
             <Ok ok={!!ping.sheet}>Governance sheet {ping.sheet ? 'writable' : 'NOT accessible'}{ping.account ? ` · runs as ${ping.account}` : ''}</Ok>
           )}
           {ping?.ok && (
-            <Ok ok={!!ping.teams}>Teams message on assign {ping.teams ? 'ready' : 'needs TEAMS_WEBHOOK'}</Ok>
+            <Ok ok={!!ping.teams}>Teams message on assign {ping.teams ? 'ready' : ping.teamsError && !/not set/.test(ping.teamsError) ? 'TEAMS_WEBHOOK is wrong' : 'needs TEAMS_WEBHOOK'}</Ok>
           )}
         </div>
-        {ping?.ok && !ping.teams && ping.teamsError && /people list|must be the URL/.test(ping.teamsError) && (
+        {ping?.ok && !ping.teams && ping.teamsError && /people list|must be the URL|not a webhook/.test(ping.teamsError) && (
           <p style={{ color: 'var(--bad)', fontSize: 13, marginTop: 0 }}>{ping.teamsError}</p>
         )}
         {ping && !ping.ok && ping.error && <p style={{ color: 'var(--bad)', fontSize: 13, marginTop: 0 }}>{ping.error}</p>}
@@ -301,8 +301,8 @@ export function ConnectionsCard() {
             Run the workflow once on GitHub (Actions → Run workflow). After that, use <b>Update data</b> at the top of the dashboard.
           </li>
           <li>
-            Optional — <b>Teams message on assign</b>: in Microsoft Teams open the channel → <b>•••</b> → <b>Workflows</b> → <b>Post to a channel when a webhook request is received</b> → pick the team and
-            channel → copy the URL. In Apps Script → Project Settings → <b>Script Properties</b> add <code>TEAMS_WEBHOOK</code> = that URL → Save, then refresh this page. For real @mentions also add{' '}
+            Optional — <b>Teams message on assign</b>: in Microsoft Teams open the channel or group chat → <b>•••</b> → <b>Workflows</b> → <b>Post to a channel when a webhook request is received</b> (for a
+            group chat: <b>Send webhook alerts to a chat</b>) → finish the steps → copy the webhook URL shown at the end (not the chat's own “Copy link”). In Apps Script → Project Settings → <b>Script Properties</b> add <code>TEAMS_WEBHOOK</code> = that URL → Save, then refresh this page. For real @mentions also add{' '}
             <code>TEAMS_PEOPLE</code> = <code>{'{"Name":"teams-email", …}'}</code>. No new deployment is needed for Script Properties.
           </li>
         </ol>

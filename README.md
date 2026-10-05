@@ -240,7 +240,7 @@ CCWT9032
 Only jobs actually assigned in that click are listed. Jobs kept with their current person are left out. The message is built by the Apps Script from the Work Sheet, so the website cannot post any other text. The result box under the board says whether the message was sent and, if not, why.
 
 **Setup (once, needs Apps Script 2.1.9 or later):**
-1. In Teams, open the channel → **•••** → **Workflows** → **Post to a channel when a webhook request is received**. Pick the team and channel, then copy the URL it gives.
+1. In Teams, open the channel → **•••** → **Workflows** → **Post to a channel when a webhook request is received**. For a group chat, use **Send webhook alerts to a chat** instead. Finish the steps, then copy the webhook URL shown at the end. It contains `workflows` or `powerautomate`. The chat's own "Copy link" (`https://teams.microsoft.com/l/…`) is not a webhook and will not work.
 2. In the Apps Script project: **Project Settings → Script Properties → Add property**. Set `TEAMS_WEBHOOK` to that URL and save. The link stays in the script and is never in the website or on GitHub.
 3. Paste the new Code.gs, save, then **Deploy → Manage deployments → ✏️ → Version: New version → Deploy**.
 4. Optional, for a real Teams @mention that notifies the person: add the Script Property `TEAMS_PEOPLE` = `{"Iftakhar":"iftakhar@yourcompany.com", …}`, using each person's Teams sign-in email and their name exactly as it appears in the Work Sheet. Without it, the name is posted as plain text "@Iftakhar".
