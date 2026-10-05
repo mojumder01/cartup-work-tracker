@@ -4,6 +4,7 @@ import { TargetVsAchievementCard } from '../components/sections/KpiSections';
 import { MonthlyTrendCard, TaskTypeCard, WorkStatusCard } from '../components/sections/WorkSections';
 import { AiManualCard, QcSummaryCard, UploadSummaryCard, VisualSummaryCard } from '../components/sections/PerformanceSections';
 import { TeamLeaderboard } from '../components/sections/TeamLeaderboard';
+import { UploadSplitCard } from '../components/sections/UploadSplitCard';
 import { WorkTable } from '../components/WorkTable';
 import { Card, SectionTitle } from '../components/ui';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -35,6 +36,9 @@ export default function DashboardPage() {
       <div className="grid grid-2">
         <ErrorBoundary>
           <UploadSummaryCard compact />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <UploadSplitCard />
         </ErrorBoundary>
         <ErrorBoundary>
           <QcSummaryCard compact />

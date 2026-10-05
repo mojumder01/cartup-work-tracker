@@ -72,8 +72,10 @@ function PersonBars({ title, subtitle, role, sumCol, valueHeader, color }: { tit
   );
 }
 
-function StatusBars({ title, column }: { title: string; column: string }) {
-  const { dataset, filtered, filters, setDim } = useApp();
+function StatusBars({ title, column, role }: { title: string; column: string; role?: string }) {
+  const { dataset, filtered: all, roleRecords, filters, setDim } = useApp();
+  // role: count that role's finished work only (e.g. uploaded jobs on the Upload page).
+  const filtered = role ? roleRecords(role) : all;
   const groups = useMemo(() => groupBy(filtered, column), [filtered, column]);
   if (!dataset.has(column)) {
     return (
@@ -83,7 +85,7 @@ function StatusBars({ title, column }: { title: string; column: string }) {
     );
   }
   return (
-    <Card title={title} subtitle={`Jobs by ${column} · click to filter`}>
+    <Card title={title} subtitle={`${role === C.uploadedBy ? 'Uploaded jobs' : 'Jobs'} by ${column} · click to filter`}>
       {groups.length ? (
         <BarList
           labelHeader={column}
@@ -103,15 +105,16 @@ function StatusBars({ title, column }: { title: string; column: string }) {
 /* ---------------- Upload ---------------- */
 
 export const UploadSummaryCard = memo(function UploadSummaryCard({ compact }: { compact?: boolean }) {
-  const { dataset, roleFiltered } = useApp();
-  const filtered = roleFiltered(C.uploadedBy);
+  const { dataset, roleRecords } = useApp();
+  // Finished uploads (Status Done) dated by Upload Month / Upload date — same rows as "Uploads by person".
+  const filtered = roleRecords(C.uploadedBy);
   const s = useMemo(() => summarize(dataset, filtered), [dataset, filtered]);
   const tat = useMemo(() => medianTurnaroundDays(filtered, C.timestamp, C.uploadDate), [filtered]);
   return (
-    <Card title="Upload Performance" subtitle={`SLA: ${sla(dataset, filtered, C.uploadSla)}`}>
+    <Card title="Upload Performance" subtitle={`Finished uploads · SLA: ${sla(dataset, filtered, C.uploadSla)}`}>
       <div className="stats">
         <Stat label="Uploaded SKU" value={fmtNum(s.uploadedSku)} />
-        <Stat label="Upload jobs (with upload date)" value={fmtNum(s.uploadJobs)} />
+        <Stat label="Upload jobs (sellers)" value={fmtNum(filtered.length)} />
         <Stat label="Upload rate (of total SKU)" value={fmtPct(s.uploadRate)} />
         <Stat label="Rejected SKU" value={fmtNum(s.rejectedSku)} />
         {!compact && <Stat label="SKU rejection rate" value={fmtPct(s.skuRejectionRate)} />}
@@ -132,8 +135,8 @@ export function UploadDetail() {
         <TrendCard title="Upload trend" dateCol={C.uploadDate} sumCol={C.uploadedSku} valueLabel="Uploaded SKU" color="var(--series-3)" />
       </div>
       <div className="grid grid-2">
-        <StatusBars title="File Type" column={C.fileType} />
-        <StatusBars title="Seller Status (After QC)" column="Seller Status (After QC)" />
+        <StatusBars title="File Type" column={C.fileType} role={C.uploadedBy} />
+        <StatusBars title="Seller Status (After QC)" column="Seller Status (After QC)" role={C.uploadedBy} />
       </div>
     </>
   );
@@ -142,14 +145,15 @@ export function UploadDetail() {
 /* ---------------- QC ---------------- */
 
 export const QcSummaryCard = memo(function QcSummaryCard({ compact }: { compact?: boolean }) {
-  const { dataset, roleFiltered, setDrill } = useApp();
-  const filtered = roleFiltered(C.qcBy);
+  const { dataset, roleRecords, setDrill } = useApp();
+  // Finished QC dated by QC approved date — same rows as "QC by person".
+  const filtered = roleRecords(C.qcBy);
   const s = useMemo(() => summarize(dataset, filtered), [dataset, filtered]);
   const tat = useMemo(() => medianTurnaroundDays(filtered, C.uploadDate, C.qcDate), [filtered]);
   return (
     <Card
       title="QC Performance"
-      subtitle={`SLA: ${sla(dataset, filtered, C.qcSla)}`}
+      subtitle={`Finished QC · SLA: ${sla(dataset, filtered, C.qcSla)}`}
       actions={
         dataset.has(C.rejectedQc) && (
           <button type="button" className="btn btn-sm" onClick={() => setDrill({ label: `${C.rejectedQc} > 0`, column: C.rejectedQc, op: 'gt0' }, 'work')}>
@@ -190,12 +194,13 @@ export function QcDetail() {
 /* ---------------- Visual / Image ---------------- */
 
 export const VisualSummaryCard = memo(function VisualSummaryCard({ compact }: { compact?: boolean }) {
-  const { dataset, roleFiltered } = useApp();
-  const filtered = roleFiltered(C.visualEditor);
+  const { dataset, roleRecords } = useApp();
+  // Delivered images dated by Image Delivered Date — same rows as "Images by visual editor".
+  const filtered = roleRecords(C.visualEditor);
   const s = useMemo(() => summarize(dataset, filtered), [dataset, filtered]);
   const tat = useMemo(() => medianTurnaroundDays(filtered, C.timestamp, C.imageDate), [filtered]);
   return (
-    <Card title="Visual / Image Performance" subtitle={`SLA: ${sla(dataset, filtered, C.visualSla)}`}>
+    <Card title="Visual / Image Performance" subtitle={`Delivered work · SLA: ${sla(dataset, filtered, C.visualSla)}`}>
       <div className="stats">
         <Stat label="Image-related jobs" value={fmtNum(s.imageJobs)} />
         <Stat label="Image count" value={fmtNum(s.imageCount)} />
@@ -209,8 +214,8 @@ export const VisualSummaryCard = memo(function VisualSummaryCard({ compact }: { 
 });
 
 export const AiManualCard = memo(function AiManualCard() {
-  const { dataset, roleFiltered } = useApp();
-  const filtered = roleFiltered(C.visualEditor);
+  const { dataset, roleRecords } = useApp();
+  const filtered = roleRecords(C.visualEditor);
   const s = useMemo(() => summarize(dataset, filtered), [dataset, filtered]);
   if (!s.ai && !s.manual) {
     return (

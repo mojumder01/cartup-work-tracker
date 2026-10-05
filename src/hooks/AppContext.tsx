@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import type { Dataset, DashboardData, KpiReport, Route, WorkRecord } from '../types';
 import { buildDataset } from '../utils/dataset';
 import { parseKpiTab } from '../utils/kpiParser';
+import { C } from '../config/dashboard.config';
 import { creditedRecords, creditRule, hasDateFilter } from '../utils/credit';
 import { applyFilters, emptyFilters, type Drill, type Filters } from '../utils/filters';
 import { useDebounce } from './useDebounce';
@@ -84,7 +85,9 @@ export function AppProvider({ data, navigate, children }: { data: DashboardData;
       if (!rule) return filtered;
       let hit = cache.get(rule.column);
       if (!hit) {
-        hit = creditedRecords(dataset, applyFilters(dataset.records, filters, { ignoreSearch: true, dateColumn: rule.date }), rule, hasDateFilter(filters));
+        // Uploads: the Month / Year filters follow the sheet's "Upload Month" column (AN), like the monthly reports.
+        const monthColumn = rule.column === C.uploadedBy && dataset.has(C.uploadMonth) ? C.uploadMonth : undefined;
+        hit = creditedRecords(dataset, applyFilters(dataset.records, filters, { ignoreSearch: true, dateColumn: rule.date, monthColumn }), rule, hasDateFilter(filters));
         // Employee filter: only that person's own work in this role (not others' work on their jobs).
         if (filters.employee) hit = hit.filter((r) => String(r.values[rule.column] ?? '').trim().toLowerCase() === filters.employee.toLowerCase());
         cache.set(rule.column, hit);
