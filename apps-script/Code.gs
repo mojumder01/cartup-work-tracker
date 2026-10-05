@@ -28,7 +28,7 @@
  *   For real @mentions add TEAMS_PEOPLE = {"Name":"teams-sign-in@email", …}; without it the name is plain "@Name".
  */
 
-var SCRIPT_VERSION = '2.1.10';
+var SCRIPT_VERSION = '2.1.11';
 
 var WORK_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
 var GOVERNANCE_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
@@ -460,6 +460,7 @@ function write_(body, nowDate) {
 function teamsHookProblem_(hook) {
   if (!hook) return 'TEAMS_WEBHOOK is not set in the Apps Script project properties.';
   if (/^\s*[{\[]/.test(hook)) return 'TEAMS_WEBHOOK holds the people list, not the Teams link. Put {"Name":"email"} in a separate property named TEAMS_PEOPLE, and set TEAMS_WEBHOOK to the URL copied from Teams → Workflows (it starts with https://).';
+  if (/^https:\/\/teams\.microsoft\.com\/l\//i.test(hook)) return 'TEAMS_WEBHOOK is a link to open the Teams chat/channel, not a webhook. In that chat or channel: ••• → Workflows → "Send webhook alerts to a chat" (or "Post to a channel when a webhook request is received") → finish the setup → copy the URL it shows at the end (it contains "workflows" or "powerautomate") and put that in TEAMS_WEBHOOK.';
   if (!/^https:\/\/\S+$/.test(hook)) return 'TEAMS_WEBHOOK must be the URL copied from Teams → Workflows (it starts with https://, no spaces).';
   return '';
 }
