@@ -28,7 +28,7 @@
  *   For real @mentions add TEAMS_PEOPLE = {"Name":"teams-sign-in@email", …}; without it the name is plain "@Name".
  */
 
-var SCRIPT_VERSION = '2.1.11';
+var SCRIPT_VERSION = '2.2.0';
 
 var WORK_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
 var GOVERNANCE_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
@@ -224,6 +224,7 @@ function read_(p) {
   var name = String(p.sheet || '');
   var cfg = SHEETS[name];
   if (!cfg) throw new Error('Unknown sheet "' + name + '"');
+  if (LOCKED_SHEETS[name]) needToken_(p.token);
   var sh = tab_(cfg, !!cfg.managed);
   var L = layout_(sh, cfg);
   var tz = L.tz;
@@ -379,6 +380,7 @@ function write_(body, nowDate) {
       var name = String(o.sheet || '');
       var cfg = SHEETS[name];
       if (!cfg) throw new Error('Unknown sheet "' + name + '"');
+      if (LOCKED_SHEETS[name]) needToken_(body.token);
       var L = layouts[name] || (layouts[name] = layout_(tab_(cfg, !!cfg.managed), cfg));
       var allowed = writable_(name, cfg);
       var canWrite = function (c) { return !SECRET.test(c) && (allowed === '*' || allowed.indexOf(c.toLowerCase()) >= 0); };
@@ -465,6 +467,20 @@ function teamsHookProblem_(hook) {
   return '';
 }
 
+// ---- Dashboard lock -----------------------------------------------------------------
+
+/**
+ * Optional Script Property DASHBOARD_TOKEN = the "Apps Script access code" shown in the unlocked
+ * dashboard (Settings → Dashboard password). When set, the Governance tabs (projects / progress)
+ * and the Update data button only work for requests carrying that code. Job desk / Task board
+ * (Work Sheet, QC sheets) are not affected.
+ */
+var LOCKED_SHEETS = { projects: true, progress: true };
+function needToken_(given) {
+  var want = String(prop_('DASHBOARD_TOKEN') || '').trim();
+  if (want && String(given || '').trim() !== want) throw new Error('The dashboard is password-locked: unlock it with the dashboard password (or, after a password change, update DASHBOARD_TOKEN in the Apps Script properties).');
+}
+
 var ASSIGN_ROLES = { 'uploaded by': 'Upload', 'visual editor': 'Image editing', 'qc by': 'QC' };
 
 /**
@@ -536,7 +552,7 @@ function doGet(e) {
       var comErr = check(SHEETS.commercial);
       var govErr = (function () { try { SpreadsheetApp.openById(GOVERNANCE_ID); return null; } catch (err) { return 'The Apps Script runs as ' + account_() + ', and that account cannot open the Governance sheet. Share it with ' + account_() + ' as Editor.'; } })();
       return json_({ ok: true, version: SCRIPT_VERSION, account: account_(), sync: !!github_(),
-        work: !workErr, workError: workErr, sheet: !govErr, sheetError: govErr, commercial: !comErr, commercialError: comErr, teams: !teamsHookProblem_(String(prop_('TEAMS_WEBHOOK') || '').trim()), teamsError: teamsHookProblem_(String(prop_('TEAMS_WEBHOOK') || '').trim()) || null });
+        work: !workErr, workError: workErr, sheet: !govErr, sheetError: govErr, commercial: !comErr, commercialError: comErr, teams: !teamsHookProblem_(String(prop_('TEAMS_WEBHOOK') || '').trim()), teamsError: teamsHookProblem_(String(prop_('TEAMS_WEBHOOK') || '').trim()) || null, dashLock: !!String(prop_('DASHBOARD_TOKEN') || '').trim() });
     }
     if (action === 'read') return json_(read_(p));
     if (action === 'syncStatus') return json_(syncStatus_());
@@ -552,7 +568,7 @@ function doPost(e) {
     lock.waitLock(25000);
     var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     if (body.action === 'write') return json_(write_(body, new Date()));
-    if (body.action === 'triggerSync') return json_(triggerSync_());
+    if (body.action === 'triggerSync') { needToken_(body.token); return json_(triggerSync_()); }
     throw new Error('Unknown action');
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message ? err.message : err) });

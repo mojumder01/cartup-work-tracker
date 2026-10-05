@@ -3,6 +3,7 @@ import { useApp } from '../hooks/AppContext';
 import { fmtDate, fmtNum } from '../utils/format';
 import { Banner, Card } from '../components/ui';
 import { ConnectionsCard } from '../components/ConnectionsCard';
+import { LockCard } from '../components/LockCard';
 import { BUILD, builtAtLabel } from '../utils/buildInfo';
 
 export type Theme = 'system' | 'light' | 'dark';
@@ -23,6 +24,8 @@ export default function SettingsPage({ refreshMinutes, setRefreshMinutes, theme,
   return (
     <>
       <ConnectionsCard />
+
+      <LockCard />
 
       <Card title="Display preferences" subtitle="Saved in this browser only">
         <div className="filter-row" style={{ maxWidth: 720 }}>

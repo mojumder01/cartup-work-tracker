@@ -4,6 +4,7 @@
  * features don't need a new Apps Script deployment.
  */
 import { readAppsScriptJson } from './appsScriptResponse';
+import { dashToken } from './dashLock';
 
 export type Cell = string | number | null;
 export type WriteValue = Cell | { date: string } | { month: string } | { now: true };
@@ -90,6 +91,9 @@ export async function scriptRead(url: string, p: ReadParams): Promise<ReadResult
   if (p.need) q.set('need', p.need.join('|'));
   if (p.order) q.set('order', p.order);
   if (p.limit) q.set('limit', String(p.limit));
+  // Dashboard lock: the unlocked dashboard proves itself to the script (Governance tabs, Update button).
+  const tk = dashToken();
+  if (tk && (p.sheet === 'projects' || p.sheet === 'progress')) q.set('token', tk);
   const res = await call(`${url}?${q.toString()}`);
   if (!res.ok) throw new Error(`The Google Sheets service returned HTTP ${res.status}.`);
   const j = await readAppsScriptJson<{ ok: boolean; error?: string; columns?: string[]; rows?: Cell[][]; total?: number; locked?: string[] }>(res);
@@ -137,7 +141,7 @@ export async function scriptWriteNotify(
     const res = await call(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'write', by, ops: ops.slice(i, i + 200), ...(notify ? { notify } : {}) }),
+      body: JSON.stringify({ action: 'write', by, ops: ops.slice(i, i + 200), ...(notify ? { notify } : {}), ...(dashToken() ? { token: dashToken() } : {}) }),
     });
     if (!res.ok) throw new Error(`The Google Sheets service returned HTTP ${res.status}.`);
     const j = await readAppsScriptJson<{ ok: boolean; error?: string; results?: WriteResult[]; notify?: NotifyResult }>(res);
