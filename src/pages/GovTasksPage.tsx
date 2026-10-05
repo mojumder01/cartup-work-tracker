@@ -12,6 +12,7 @@ import { BarList } from '../charts/BarList';
 import { TrendChart } from '../charts/TrendChart';
 import { Card, EmptyState, ErrorState, KpiCard, Segmented } from '../components/ui';
 import { Icon } from '../components/Icon';
+import { AdhocIndividual } from './gov/AdhocIndividual';
 
 type Measure = 'products' | 'tasks' | 'shops' | 'images';
 const MEASURES: { id: Measure; label: string }[] = [
@@ -239,6 +240,8 @@ export default function GovTasksPage() {
           {trend.length ? <TrendChart data={trend} valueLabel={measureLabel} color="var(--series-7)" /> : <EmptyState small />}
         </Card>
       </div>
+
+      <AdhocIndividual tasks={adhoc.tasks} people={options.people} />
 
       <Card
         title="Ad-Hoc task log"

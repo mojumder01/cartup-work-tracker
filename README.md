@@ -440,6 +440,14 @@ If you later change `Code.gs`, use **Deploy → Manage deployments → Edit → 
 
 > Access: as chosen, anyone who has the dashboard link can create or edit projects and progress. The script only accepts the fields listed in `Code.gs`, validates numbers and dates, and neutralises formulas. It cannot read or change any other tab.
 
+
+### Ad-Hoc Tasks → Individual report
+
+The Ad-Hoc Tasks page has an **Individual report** card that shows the "Ad-Hoc Task · <person>" table, the same one used in the Individual Summary report. Each table lists one person's Ad-Hoc SKUs (Product Count) per Task Type for the chosen period and the one before, with the change (Δ) and a total.
+- **Week / Month** chooses the period type. The newest period with entries is selected by default.
+- **Person:** one person, or everyone who has entries in either period. People marked Left are hidden.
+- **Excel** downloads an Info sheet, an "All people" sheet, and one sheet per person.
+
 ## Team Members (who left the job)
 
 **Team Members** lists everyone found in the Work Sheet. For each person you can set the full name printed on reports, their team, and **Left the job** plus their last working day. A person who left is still included in reports for periods before that date. An "inactive 45d+" badge flags people with no recent work.

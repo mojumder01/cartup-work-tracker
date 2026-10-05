@@ -153,3 +153,21 @@
 .md-li-n { color: var(--ink-3); font-size: 11.5px; text-align: right; }
 .md-li-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .md-li .icon-btn { width: 26px; height: 26px; }
+
+/* Report tables used outside a slide (Ad-Hoc Tasks → Individual report). */
+.rs-standalone {
+  --rs-maroon: #5a1e35;
+  --rs-maroon-2: #6e2a45;
+  --rs-rose: #f8eef1;
+  --rs-rose-2: #efdfe5;
+  --rs-teal: #0f8a7c;
+  --rs-red: #d8453b;
+  --rs-ink: #222;
+  color: var(--rs-ink);
+  font-family: Calibri, 'Carlito', 'Segoe UI', Arial, sans-serif;
+}
+.rs-standalone .rs-block { background: #fff; }
+.rs-standalone .rs-table { font-size: 13px; }
+.rs-standalone .rs-table th { font-size: 12px; padding: 6px 4px; }
+.rs-standalone .rs-table td { padding: 6px 4px; }
+.adhoc-ind-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 14px; align-items: start; }
