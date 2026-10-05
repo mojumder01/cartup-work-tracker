@@ -28,7 +28,7 @@
  *   For real @mentions add TEAMS_PEOPLE = {"Name":"teams-sign-in@email", …}; without it the name is plain "@Name".
  */
 
-var SCRIPT_VERSION = '2.1.9';
+var SCRIPT_VERSION = '2.1.10';
 
 var WORK_ID = '1H35eZz06Wx4uGcFXxZjwQQ1F1M5T8qU3gi8fY2gvaXc';
 var GOVERNANCE_ID = '1Bw1lfwvEJfFOx_1HFifPqdr6KoG9XQ8rAJiNAboN5T4';
@@ -456,6 +456,14 @@ function write_(body, nowDate) {
 
 // ---- Microsoft Teams message for Task board assignments -------------------------------
 
+/** Plain-English problem with the TEAMS_WEBHOOK Script Property, or '' when it looks like a webhook URL. */
+function teamsHookProblem_(hook) {
+  if (!hook) return 'TEAMS_WEBHOOK is not set in the Apps Script project properties.';
+  if (/^\s*[{\[]/.test(hook)) return 'TEAMS_WEBHOOK holds the people list, not the Teams link. Put {"Name":"email"} in a separate property named TEAMS_PEOPLE, and set TEAMS_WEBHOOK to the URL copied from Teams → Workflows (it starts with https://).';
+  if (!/^https:\/\/\S+$/.test(hook)) return 'TEAMS_WEBHOOK must be the URL copied from Teams → Workflows (it starts with https://, no spaces).';
+  return '';
+}
+
 var ASSIGN_ROLES = { 'uploaded by': 'Upload', 'visual editor': 'Image editing', 'qc by': 'QC' };
 
 /**
@@ -464,8 +472,9 @@ var ASSIGN_ROLES = { 'uploaded by': 'Upload', 'visual editor': 'Image editing', 
  * in this request. The text comes from the Work Sheet, not from the website, so the endpoint can't post anything else.
  */
 function notifyAssign_(n, by, results, L) {
-  var hook = prop_('TEAMS_WEBHOOK');
-  if (!hook) return { ok: false, reason: 'TEAMS_WEBHOOK is not set in the Apps Script project properties.' };
+  var hook = String(prop_('TEAMS_WEBHOOK') || '').trim();
+  var bad = teamsHookProblem_(hook);
+  if (bad) return { ok: false, reason: bad };
   var field = String(n.field || '');
   if (!ASSIGN_ROLES[field.toLowerCase()]) return { ok: false, reason: 'Unknown role "' + field + '"' };
   var keys = results.filter(function (r) { return r.ok && (r.written || []).some(function (w) { return w.toLowerCase() === field.toLowerCase(); }); })
@@ -526,7 +535,7 @@ function doGet(e) {
       var comErr = check(SHEETS.commercial);
       var govErr = (function () { try { SpreadsheetApp.openById(GOVERNANCE_ID); return null; } catch (err) { return 'The Apps Script runs as ' + account_() + ', and that account cannot open the Governance sheet. Share it with ' + account_() + ' as Editor.'; } })();
       return json_({ ok: true, version: SCRIPT_VERSION, account: account_(), sync: !!github_(),
-        work: !workErr, workError: workErr, sheet: !govErr, sheetError: govErr, commercial: !comErr, commercialError: comErr, teams: !!prop_('TEAMS_WEBHOOK') });
+        work: !workErr, workError: workErr, sheet: !govErr, sheetError: govErr, commercial: !comErr, commercialError: comErr, teams: !teamsHookProblem_(String(prop_('TEAMS_WEBHOOK') || '').trim()), teamsError: teamsHookProblem_(String(prop_('TEAMS_WEBHOOK') || '').trim()) || null });
     }
     if (action === 'read') return json_(read_(p));
     if (action === 'syncStatus') return json_(syncStatus_());
