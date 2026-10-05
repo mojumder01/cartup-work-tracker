@@ -44,8 +44,8 @@
       "label": "Retail [Picks] Upload Request",
       "spreadsheetId": "1YBrZQkge-3Ch-Zkzp10E9HAsOyfMiixQh-zdTb45FD4",
       "gid": 1610558392,
-      "$comment_columns": "Fixed column letters, used instead of header names: skus = the uploaded SKU (picks) count.",
-      "columns": { "skus": "F" },
+      "$comment_columns": "Fixed column letters, used instead of header names: skus = the uploaded SKU (picks) count, date = Upload Date (dates the picks in every report).",
+      "columns": { "skus": "F", "date": "N" },
       "expectedColumns": ["Uploaded By", "Upload Date", "QC By", "QC Date"]
     },
     "pendingQc": {

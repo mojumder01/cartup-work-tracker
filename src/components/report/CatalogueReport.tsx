@@ -97,8 +97,8 @@ export function CatalogueReport() {
     rows.push(['SKUs Count', S.uploadedSkus, S.pendingSkus, S.qcDoneSkus, S.qcPendingSkus]);
     rows.push([]);
     rows.push(['Production Summary']);
-    rows.push(['Employee Name', 'Employee Type', 'Joining Date', 'Target (Sellers)', 'Manual (Sellers)', 'Bulk (Sellers)', 'Total Uploaded (Sellers)', 'Uploaded (SKUs)', 'Achieved %', ...(mode === 'day' ? ['Retail (Sellers)'] : [])]);
-    production.forEach((r) => rows.push([r.name, r.type, r.joining, r.target, r.manual, r.bulk, r.total, r.skus, r.pct === null ? null : Number(r.pct.toFixed(1)), ...(mode === 'day' ? [r.retail] : [])]));
+    rows.push(['Employee Name', 'Employee Type', 'Joining Date', 'Target (Sellers)', 'Manual (Sellers)', 'Bulk (Sellers)', 'Total Uploaded (Sellers)', 'Uploaded (SKUs)', 'Achieved %', 'Retail Picks (Sellers)']);
+    production.forEach((r) => rows.push([r.name, r.type, r.joining, r.target, r.manual, r.bulk, r.total, r.skus, r.pct === null ? null : Number(r.pct.toFixed(1)), r.retail]));
     rows.push([]);
     rows.push(['QC Summary']);
     rows.push(['Employee Name', 'Employee Type', 'Joining Date', 'Target (SKUs)', 'Seller Count', 'SKUs Count', ...(mode === 'day' ? ['Within 48h (Sellers)', 'Within 72h (Sellers)', 'Older than 72h'] : []), 'Achieved %']);
@@ -222,7 +222,7 @@ export function CatalogueReport() {
                   <th>Total Uploaded (Sellers)</th>
                   <th>Uploaded (SKUs)</th>
                   <th>Achieved %</th>
-                  {mode === 'day' && <th>Retail Picks (Sellers)</th>}
+                  <th>Retail Picks (Sellers)</th>
                 </tr>
               </thead>
               <tbody>
@@ -237,7 +237,7 @@ export function CatalogueReport() {
                     <td>{dash(r.total)}</td>
                     <td>{dash(r.skus)}</td>
                     <td>{r.pct === null ? '—' : <AchievementBadge pct={r.pct} />}</td>
-                    {mode === 'day' && <td>{dash(r.retail)}</td>}
+                    <td>{dash(r.retail)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -252,7 +252,7 @@ export function CatalogueReport() {
                   <td>{fmtNum(sum(production, (r) => r.total))}</td>
                   <td>{fmtNum(sum(production, (r) => r.skus))}</td>
                   <td>{fmtPct(avg(production.map((r) => r.pct)))}</td>
-                  {mode === 'day' && <td>{fmtNum(sum(production, (r) => r.retail))}</td>}
+                  <td>{fmtNum(sum(production, (r) => r.retail))}</td>
                 </tr>
               </tfoot>
             </table>

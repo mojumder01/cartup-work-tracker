@@ -19,7 +19,7 @@ import { BACKLOG_EXCLUDED_STATUSES, PEOPLE_DEFAULTS, type TeamId } from '../conf
 import type { Dataset, ExtraTable, FlatTable } from '../types';
 import { pendingQcNow, retailByPerson } from './extraSources';
 import { fmtNum } from './format';
-import { parseDate, text, toNumber } from './parse';
+import { monthKeyOf, parseDate, text, toMonthKey, toNumber } from './parse';
 import type { Period } from './periods';
 import { findPerson, type Person } from './roster';
 import { checkCredit, creditRule } from './credit';
@@ -104,13 +104,15 @@ const inRange = (ms: number | null | undefined, p: Period) => ms != null && ms >
 const n = (v: unknown) => toNumber(v as never) ?? 0;
 
 /** Per-person sums of finished work (dashboardConfig.credit) dated in the period. */
-function sumBy(ds: Dataset, role: string, dateCol: string, p: Period, fields: Record<string, (r: Dataset['records'][number]) => number>) {
+function sumBy(ds: Dataset, role: string, dateCol: string, p: Period, fields: Record<string, (r: Dataset['records'][number]) => number>, monthCol?: string) {
   const out = new Map<string, Nums>();
   if (!ds.has(role) || !ds.has(dateCol)) return out;
   const rule = creditRule(role);
   for (const r of ds.records) {
-    if (!inRange(r.dates[dateCol], p)) continue;
-    if (rule && !checkCredit(ds, r, rule).counted) continue;
+    // Month periods: the sheet's month column (e.g. "Upload Month", AN) decides; blank → the date.
+    const mk = p.type === 'month' && monthCol && ds.has(monthCol) ? toMonthKey(r.values[monthCol]) : null;
+    if (mk ? mk !== monthKeyOf(p.start) : !inRange(r.dates[dateCol], p)) continue;
+    if (rule && !checkCredit(ds, r, rule, !mk).counted) continue;
     const name = text(r.values[role]).toLowerCase();
     if (!name) continue;
     let acc = out.get(name);
@@ -225,7 +227,7 @@ export function buildIndividualReport({ ds, sellerQc, roster, prev, cur, teams, 
         'Production', retailPrev || retailCur ? 'PRODUCTION · New Upload + Retail Picks' : 'PRODUCTION · New Upload',
         [{ key: 'sellers', label: 'Seller' }, { key: 'skus', label: 'SKUs' }],
         'skus', 'Δ SKUs', prodNames, roster,
-        withRetail(sumBy(ds, C.uploadedBy, C.uploadDate, prev, prodFields), retailPrev), withRetail(sumBy(ds, C.uploadedBy, C.uploadDate, cur, prodFields), retailCur),
+        withRetail(sumBy(ds, C.uploadedBy, C.uploadDate, prev, prodFields, C.uploadMonth), retailPrev), withRetail(sumBy(ds, C.uploadedBy, C.uploadDate, cur, prodFields, C.uploadMonth), retailCur),
         [C.uploadedBy, C.uploadDate, C.uploadedSku].filter((c) => !has(c)),
       )
     : null;

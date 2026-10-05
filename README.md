@@ -370,6 +370,14 @@ The **Product Governance** report is under **Reports → Product Governance** (s
 
 **Click any text on a slide to edit it.** That includes titles, notes, highlight lines and every table cell. Edits are saved in your browser per month; clear a text to get the automatic one back. You can also hide or reorder slides, and add **text slides** (with 0–3 cards and a COMPLETE / IN PROGRESS badge) for work that is not in the sheets. Download **PowerPoint**, where every text box, table and the chart stay editable, or **PDF / Print** (one 16:9 page per slide).
 
+
+**Which dates decide the month (2.13.0):**
+- **Work Sheet uploads:** the **"Upload Month"** column (AN). If Upload Month is blank, the Upload date is used.
+  - This applies to the Monthly Report, Daily / Monthly Performance in Monthly mode, and the Individual Summary for month periods.
+  - Daily and weekly views use the Upload date.
+- **Retail Picks:** the picks sheet's **"Upload Date"** (column N, fixed in `config/data-source.json` → `extraSources.retail.columns.date`), in daily and monthly reports.
+  - Picks names are matched to staff names like in the Individual Summary, so "Iftkhar" counts for Iftakhar.
+
 ## Data updates (manual)
 
 The dashboard no longer syncs automatically. To pull the latest Google Sheets data, click **Update data** (top right). The Apps Script starts the GitHub Action, and the page reloads itself when the new data is published, usually after 1–2 minutes. Without the Apps Script token the button opens **Actions → Run workflow** on GitHub instead. "Data from Google Sheets: …" shows when the data was last read. The small ↻ button only re-reads the already-published data.
