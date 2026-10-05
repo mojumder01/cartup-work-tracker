@@ -300,6 +300,17 @@ Under the Save button, the Job desk has a checkbox **"Also update Cartup Work Tr
 
 **Needs Apps Script 2.1.7 or later.** The account the script runs as must have **Editor** access to that spreadsheet; Settings → Connections shows whether it can write. Two Script Properties change the behaviour without redeploying: `COMMERCIAL_MAP` (JSON) changes the column mapping, and `COMMERCIAL_JOB_COL` changes the JOB ID column letter.
 
+## Download all reports
+
+Reports has a **Download all reports** button. One click downloads every report's files, one after another, each with the settings last chosen on its tab:
+- Individual Summary (Excel)
+- Ad-Hoc Individual (Excel)
+- Monthly Report (PowerPoint)
+- Daily / Monthly Performance (Excel)
+- Product Governance (PowerPoint and Excel)
+
+The browser may ask once to allow multiple downloads. PDF is still made per report with **PDF / Print**, because that uses the browser's print dialog.
+
 ## Individual Summary report
 
 **Reports → Individual Summary** builds the Cartup "Individual Summary — Week 37 vs Week 38" slide from live data. It opens on the last completed week vs the week before, so a report is **one click → PDF / Print** (choose "Save as PDF", or it prints on one 16:9 page).
@@ -443,7 +454,7 @@ If you later change `Code.gs`, use **Deploy → Manage deployments → Edit → 
 
 ### Ad-Hoc Tasks → Individual report
 
-The Ad-Hoc Tasks page has an **Individual report** card that shows the "Ad-Hoc Task · <person>" table, the same one used in the Individual Summary report. Each table lists one person's Ad-Hoc SKUs (Product Count) per Task Type for the chosen period and the one before, with the change (Δ) and a total.
+The Ad-Hoc Tasks page has an **Individual report** card, also available as the **Ad-Hoc Individual** tab under **Reports**, that shows the "Ad-Hoc Task · <person>" table, the same one used in the Individual Summary report. Each table lists one person's Ad-Hoc SKUs (Product Count) per Task Type for the chosen period and the one before, with the change (Δ) and a total.
 - **Week / Month** chooses the period type. The newest period with entries is selected by default.
 - **Person:** one person, or everyone who has entries in either period. People marked Left are hidden.
 - **Excel** downloads an Info sheet, an "All people" sheet, and one sheet per person.

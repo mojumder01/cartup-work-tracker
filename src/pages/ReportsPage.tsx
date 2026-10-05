@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { C } from '../config/dashboard.config';
 import { useApp } from '../hooks/AppContext';
 import { applyFilters, resolveMonth } from '../utils/filters';
@@ -12,6 +12,8 @@ import { ReportBuilder } from '../components/report/ReportBuilder';
 import { GovernanceReport } from '../components/report/GovernanceReport';
 import { MonthlyReport } from '../components/report/MonthlyReport';
 import { CatalogueReport } from '../components/report/CatalogueReport';
+import { AdhocReport } from './gov/AdhocIndividual';
+import { BulkContext, type BulkRegistry } from '../components/report/bulk';
 import { FilterBar } from '../components/FilterBar';
 import { Icon } from '../components/Icon';
 
@@ -255,7 +257,82 @@ function DataExports() {
   );
 }
 
-type ReportTab = 'individual' | 'monthly' | 'catalogue' | 'governance' | 'exports';
+type ReportTab = 'individual' | 'adhoc' | 'monthly' | 'catalogue' | 'governance' | 'exports';
+
+/** Order of "Download all reports". */
+const BULK_ORDER = ['individual', 'adhoc', 'monthly', 'catalogue', 'governance'];
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Mounts every report off-screen (each with its saved settings) and downloads their Excel /
+ * PowerPoint files one after another.
+ */
+function DownloadAll() {
+  const [running, setRunning] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const reg = useRef<BulkRegistry>(new Map());
+
+  useEffect(() => {
+    if (!running) return;
+    let stop = false;
+    (async () => {
+      await wait(1200); // let the reports compute
+      const jobs = BULK_ORDER.flatMap((id) => reg.current.get(id)?.current ?? []);
+      const done: string[] = [];
+      const failed: string[] = [];
+      for (const [i, j] of jobs.entries()) {
+        if (stop) return;
+        setStatus(`Downloading ${i + 1} of ${jobs.length}: ${j.label}…`);
+        try {
+          await j.run();
+          done.push(j.label);
+        } catch (e) {
+          failed.push(`${j.label} (${(e as Error).message})`);
+        }
+        await wait(700); // browsers drop downloads that start at the same instant
+      }
+      const missing = BULK_ORDER.filter((id) => !(reg.current.get(id)?.current ?? []).length);
+      setStatus(
+        `Downloaded ${done.length} file${done.length === 1 ? '' : 's'}.` +
+          (failed.length ? ` Failed: ${failed.join('; ')}.` : '') +
+          (missing.length ? ` Not available: ${missing.join(', ')}.` : ''),
+      );
+      setRunning(false);
+    })();
+    return () => {
+      stop = true;
+    };
+  }, [running]);
+
+  return (
+    <>
+      <button
+        type="button"
+        className="btn btn-primary btn-sm"
+        disabled={running}
+        onClick={() => {
+          setStatus('Preparing all reports…');
+          setRunning(true);
+        }}
+        title="Excel / PowerPoint of every report, each with its saved settings"
+      >
+        <Icon name="download" size={14} /> {running ? 'Downloading…' : 'Download all reports'}
+      </button>
+      {status && <span className="muted" style={{ fontSize: 13 }}>{status}</span>}
+      {running && (
+        <BulkContext.Provider value={reg.current}>
+          <div aria-hidden="true" style={{ position: 'fixed', left: -20000, top: 0, width: 1400, pointerEvents: 'none' }}>
+            <ReportBuilder />
+            <AdhocReport />
+            <MonthlyReport />
+            <CatalogueReport />
+            <GovernanceReport />
+          </div>
+        </BulkContext.Provider>
+      )}
+    </>
+  );
+}
 
 export default function ReportsPage() {
   const [tab, setTab] = useState<ReportTab>(() => {
@@ -275,21 +352,24 @@ export default function ReportsPage() {
   };
   return (
     <>
-      <div>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <Segmented
           label="Report"
           value={tab}
           onChange={choose}
           options={[
             { id: 'individual', label: 'Individual Summary' },
+            { id: 'adhoc', label: 'Ad-Hoc Individual' },
             { id: 'monthly', label: 'Monthly Report' },
             { id: 'catalogue', label: 'Daily / Monthly Performance' },
             { id: 'governance', label: 'Product Governance' },
             { id: 'exports', label: 'Data exports' },
           ]}
         />
+        <DownloadAll />
       </div>
       {tab === 'individual' && <ReportBuilder />}
+      {tab === 'adhoc' && <AdhocReport />}
       {tab === 'monthly' && <MonthlyReport />}
       {tab === 'catalogue' && <CatalogueReport />}
       {tab === 'governance' && <GovernanceReport />}

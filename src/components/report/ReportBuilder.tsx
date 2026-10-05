@@ -17,6 +17,7 @@ import type { GlanceItem } from '../../utils/individualReport';
 import { Card, Segmented } from '../ui';
 import { Icon } from '../Icon';
 import { ReportSlide, type Highlight } from './ReportSlide';
+import { useBulkDownloads } from './bulk';
 import './report.css';
 
 interface Settings {
@@ -94,6 +95,7 @@ export function useFitScale(ref: React.RefObject<HTMLDivElement | null>, width =
 }
 
 export function ReportBuilder() {
+  const bulk = useBulkDownloads('individual');
   const { dataset, data, roster, kpi, navigate } = useApp();
   const gov = useGovernance();
   const [settings, setSettings] = useLocalStorage<Settings>('cartup.reportSettings', DEFAULT_SETTINGS);
@@ -321,6 +323,7 @@ export function ReportBuilder() {
     const width = Math.max(...rows.map((r) => r.length));
     await exportXlsx(`individual-summary-${prev.short}-vs-${cur.short}-${stamp()}.xlsx`, 'Individual Summary', Array(width).fill(''), rows.map((r) => [...r, ...Array(width - r.length).fill(null)]));
   };
+  bulk.current = [{ label: 'Individual Summary (Excel)', run: downloadExcel }];
 
   return (
     <div className="rb-layout">

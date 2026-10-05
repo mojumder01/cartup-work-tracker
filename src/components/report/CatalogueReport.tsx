@@ -9,6 +9,7 @@ import { exportXlsx, stamp, type ExportRow } from '../../utils/export';
 import { AchievementBadge, Card, Segmented } from '../ui';
 import { Icon } from '../Icon';
 import './report.css';
+import { useBulkDownloads } from './bulk';
 
 const DAY = 86400000;
 
@@ -34,6 +35,7 @@ function printDocument(el: HTMLElement, title: string) {
 const dash = (n: number | null | undefined) => (n ? fmtNum(n) : '—');
 
 export function CatalogueReport() {
+  const bulk = useBulkDownloads('catalogue');
   const { dataset, data, roster } = useApp();
   const [mode, setMode] = useLocalStorage<CatalogueMode>('cartup.catMode', 'day');
   const [dayStr, setDayStr] = useState(() => toIsoDate(Date.now() - DAY));
@@ -108,6 +110,7 @@ export function CatalogueReport() {
     const w = Math.max(...rows.map((r) => r.length));
     await exportXlsx(`catalogue-${mode === 'day' ? dayStr : monthStr}-${stamp()}.xlsx`, 'Performance', Array(w).fill(''), rows.map((r) => [...r, ...Array(w - r.length).fill(null)]));
   };
+  bulk.current = [{ label: 'Daily / Monthly Performance (Excel)', run: downloadExcel }];
 
   return (
     <>
