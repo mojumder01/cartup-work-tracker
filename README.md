@@ -300,6 +300,23 @@ Under the Save button, the Job desk has a checkbox **"Also update Cartup Work Tr
 
 **Needs Apps Script 2.1.7 or later.** The account the script runs as must have **Editor** access to that spreadsheet; Settings → Connections shows whether it can write. Two Script Properties change the behaviour without redeploying: `COMMERCIAL_MAP` (JSON) changes the column mapping, and `COMMERCIAL_JOB_COL` changes the JOB ID column letter.
 
+## All Sheets (preview of every synced tab)
+
+**Data → All Sheets** shows every tab the sync publishes, laid out like the Work Sheet page:
+- Content Work Tracker: Work Sheet, KPI & Target, Admin portal QC import data, Team.
+- Governance: Main, Projects, Project Progress.
+- Catalogue Overall Performance: Monthly / Daily Performance, KPI, Team, and the two Import tabs.
+- Any extra sources.
+
+Tables can be searched and sorted (click a header) and are shown 100 rows per page; **Excel** downloads the sheet with the current search. Report-style tabs (KPI & Target, Monthly / Daily Performance, KPI) are shown cell by cell with A, B, C… column letters.
+
+**Data checks** at the top list Work Sheet problems to fix in Google Sheets. The dashboard shows the data exactly as it is and never changes it.
+- **Empty rows:** rows with only a JOB ID are not counted as jobs.
+- **Duplicate JOB IDs:** all rows are counted; the Job desk updates the first one.
+- **Impossible dates:** before 2020 or far in the future, e.g. 1970-01-01. These appear as odd months such as "January 1970".
+
+**Counting rule (fixed in 2.12.0):** with no date filter ("All time"), per-person numbers also count finished work whose finish date (Upload date / QC approved date / Image Delivered Date) is blank, so they add up to the sheet totals. With a date, month or year filter, a finish date is still needed to place the work in that period.
+
 ## Download all reports
 
 Reports has a **Download all reports** button. One click downloads every report's files, one after another, each with the settings last chosen on its tab:

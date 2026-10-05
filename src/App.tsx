@@ -21,13 +21,14 @@ import ReportsPage from './pages/ReportsPage';
 import PeoplePage from './pages/PeoplePage';
 import GovTasksPage from './pages/GovTasksPage';
 import GovProjectsPage from './pages/GovProjectsPage';
+import SheetsPage from './pages/SheetsPage';
 import { GovernanceProvider, localAppsScriptUrl } from './hooks/useGovernance';
 import SettingsPage, { type Theme } from './pages/SettingsPage';
 import { QcPage, UploadPage, VisualPage } from './pages/SectionPages';
 import { BuiltBy } from './components/BuiltBy';
 
 /** Pages that do not depend on the Work Sheet filters. */
-const NO_FILTER_ROUTES: Route[] = ['kpi', 'settings', 'people', 'reports', 'gov-tasks', 'gov-projects'];
+const NO_FILTER_ROUTES: Route[] = ['kpi', 'settings', 'people', 'reports', 'gov-tasks', 'gov-projects', 'sheets'];
 
 function ConnectedHeader(props: { updatedAt: string; checkedAt: number | null; loading: boolean; onReload: () => void; sync: SyncState; route: Route }) {
   const { filters, setFilters, navigate } = useApp();
@@ -59,6 +60,8 @@ function Page({ route, prefs }: { route: Route; prefs: { refreshMinutes: number;
       return <VisualPage />;
     case 'reports':
       return <ReportsPage />;
+    case 'sheets':
+      return <SheetsPage />;
     case 'people':
       return <PeoplePage />;
     case 'gov-tasks':
