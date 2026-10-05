@@ -218,7 +218,7 @@ On the Job desk's **Search** tab, an employee picks their name and sees:
 - **Images in hand:** not yet delivered;
 - **QC in hand:** not yet QC'd.
 
-Each job row shows JOB ID, Shop, **Note** (column L), SKU, age, a **Google drive link** (column F; "Open ↗" opens it in a new tab) and Status. A **Requested from / to** calendar filters the counts and the list by the day the job was requested. Click a job to open it in **Update my task**.
+Each job row shows JOB ID, Shop, **Seller Code** (column N), **Note** (column L), SKU, age, a **Google drive link** (column F; "Open ↗" opens it in a new tab) and Status. Hover over any cell to show a **copy** button (⧉ → ✓ when copied; the Drive cell copies the full link). On touch screens the button stays faintly visible. On a phone the table shows JOB ID, Shop and Seller Code; on a narrow desktop window it scrolls sideways. A **Requested from / to** calendar filters the counts and the list by the day the job was requested. Click a job (anywhere but a copy button or link) to open it in **Update my task**.
 
 ### Task board filters
 
