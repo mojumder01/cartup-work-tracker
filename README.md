@@ -228,16 +228,24 @@ Each job row shows JOB ID, Shop, **Seller Code** (column N), **Note** (column L)
 
 ### Microsoft Teams message on assign (Task board)
 
-When **message Teams** is ticked in the assign bar (it is on by default), clicking **Assign** posts one card to your Teams channel. The card says "📌 New Upload/Image editing/QC task(s) for <person>" and shows the job count, total SKUs, who assigned them and when. Below that is a table of JOB ID, Shop, Seller Code and SKU (up to 40 rows), plus an **Open Job desk** button. The result box under the board says whether the message was sent and, if not, why.
+The assign bar has an optional **message Teams** checkbox. It is **unchecked by default**, and the board remembers your choice. When it is ticked, clicking **Assign** posts a short message per person to your Teams channel:
 
-The card is built by the Apps Script from the Work Sheet, and only for jobs it actually assigned in that click. Jobs kept with their current person are left out. The website cannot post any other text.
+```
+@Iftakhar
+CCWT9019
+CCWT9020
+CCWT9032
+```
 
-**Setup (once, needs Apps Script 2.1.8 or later):**
+Only jobs actually assigned in that click are listed. Jobs kept with their current person are left out. The message is built by the Apps Script from the Work Sheet, so the website cannot post any other text. The result box under the board says whether the message was sent and, if not, why.
+
+**Setup (once, needs Apps Script 2.1.9 or later):**
 1. In Teams, open the channel → **•••** → **Workflows** → **Post to a channel when a webhook request is received**. Pick the team and channel, then copy the URL it gives.
 2. In the Apps Script project: **Project Settings → Script Properties → Add property**. Set `TEAMS_WEBHOOK` to that URL and save. The link stays in the script and is never in the website or on GitHub.
 3. Paste the new Code.gs, save, then **Deploy → Manage deployments → ✏️ → Version: New version → Deploy**.
+4. Optional, for a real Teams @mention that notifies the person: add the Script Property `TEAMS_PEOPLE` = `{"Iftakhar":"iftakhar@yourcompany.com", …}`, using each person's Teams sign-in email and their name exactly as it appears in the Work Sheet. Without it, the name is posted as plain text "@Iftakhar".
 
-Settings → Connections shows "Teams message on assign ready" once the property is set.
+Settings → Connections shows "Teams message on assign ready" once `TEAMS_WEBHOOK` is set.
 
 ### Daily report message (Task board)
 
