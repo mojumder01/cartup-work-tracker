@@ -36,7 +36,7 @@ export function ConnectionsCard() {
     }
     window.location.reload();
   };
-  const [ping, setPing] = useState<{ ok: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; commercial?: boolean; commercialError?: string; teams?: boolean; account?: string; version?: string; error?: string } | null>(null);
+  const [ping, setPing] = useState<{ ok: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; commercial?: boolean; commercialError?: string; teams?: boolean; teamsError?: string | null; account?: string; version?: string; error?: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const repoUrl = BUILD.repo ? `https://github.com/${BUILD.repo}` : null;
 
@@ -206,6 +206,9 @@ export function ConnectionsCard() {
             <Ok ok={!!ping.teams}>Teams message on assign {ping.teams ? 'ready' : 'needs TEAMS_WEBHOOK'}</Ok>
           )}
         </div>
+        {ping?.ok && !ping.teams && ping.teamsError && /people list|must be the URL/.test(ping.teamsError) && (
+          <p style={{ color: 'var(--bad)', fontSize: 13, marginTop: 0 }}>{ping.teamsError}</p>
+        )}
         {ping && !ping.ok && ping.error && <p style={{ color: 'var(--bad)', fontSize: 13, marginTop: 0 }}>{ping.error}</p>}
         {ping?.ok && ping.version !== LATEST_SCRIPT && (
           <p style={{ color: 'var(--bad)', fontSize: 13, marginTop: 0 }}>
