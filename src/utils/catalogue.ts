@@ -5,8 +5,10 @@
  * Performance" tabs of the Catalogue Overall Performance spreadsheet:
  *
  *  Production (per "Uploaded by"):
- *    Manual  = Work Sheet rows, File Type "Manual File", Status "Done", Upload date in period
- *              (+ Retail Picks rows, File Type "Manual File", Upload Status "Done" — daily only)
+ *    Manual  = Work Sheet rows, File Type "Manual File", Status "Done", uploaded in period
+ *              (+ Retail Picks rows, File Type "Manual File", Upload Status "Done", by its Upload Date)
+ *    "Uploaded in period": daily = Upload date; monthly = the "Upload Month" column (AN),
+ *              falling back to Upload date when Upload Month is blank.
  *    Bulk    = Work Sheet rows, File Type "Daraz File", Status "Done", Upload date in period
  *    SKUs    = Σ Uploaded SKU Count, Status "Done", Upload date in period
  *    Achieved% = (Manual + Bulk) ÷ target
@@ -24,7 +26,8 @@
  */
 import { C } from '../config/dashboard.config';
 import type { CellValue, Dataset, FlatTable, PerformanceData, ReportTab } from '../types';
-import { isBlank, parseDate, text, toNumber } from './parse';
+import { isBlank, monthKeyOf, parseDate, text, toMonthKey, toNumber } from './parse';
+import { matchName } from './individualReport';
 
 export type CatalogueMode = 'day' | 'month';
 export interface CatPeriod {
@@ -225,7 +228,20 @@ export function buildCatalogueReport(args: {
   const com = flat(args.perf?.commercial);
   const retail = flat(args.perf?.retail, { 'File Type': ['Upload Type', 'File type'] });
   if (!com) notes.push('ContentCommercial Work tab not available — “Uploaded / Pending” summary uses the Work Sheet and seller-upload QC is not included.');
-  if (day && !retail) notes.push('Retail Picks Upload tab not available — retail uploads are not included.');
+  if (!retail) notes.push('Retail Picks Upload tab not available — retail uploads are not included.');
+  /**
+   * Was this Work Sheet job uploaded in the period? Monthly: the sheet's "Upload Month" column
+   * (AN) decides; rows with a blank Upload Month fall back to the Upload date. Daily: Upload date.
+   */
+  const useUploadMonth = !day && ds.has(C.uploadMonth);
+  const periodMonth = monthKeyOf(period.start);
+  const uploadedIn = (r: Dataset['records'][number]) => {
+    if (useUploadMonth) {
+      const k = toMonthKey(r.values[C.uploadMonth]);
+      if (k) return k === periodMonth;
+    }
+    return inP(r.dates[C.uploadDate], period);
+  };
 
   const staff = staffFor(args.perf, period.mode);
   if (!staff) notes.push('Performance sheet not connected — staff lists come from the Team Members page and targets show —.');
@@ -235,20 +251,24 @@ export function buildCatalogueReport(args: {
   const recs = ds.records;
 
   // ---------------- Production ----------------
+  // Retail Picks spells some names differently ("Iftkhar"): match them to the staff list like the Individual Summary does.
+  const prodNames = list('production').map((x) => x.name);
+  const retailWho = (row: CellValue[]) => (retail ? matchName(text(retail.get(row, 'Uploaded By')), prodNames) : null);
   const production: ProductionRow[] = list('production').map((s) => {
     let manual = 0;
     let bulk = 0;
     let skus = 0;
     for (const r of recs) {
-      if (!same(r.values[C.uploadedBy], s.name) || !eq(r.values[C.status], 'Done') || !inP(r.dates[C.uploadDate], period)) continue;
+      if (!same(r.values[C.uploadedBy], s.name) || !eq(r.values[C.status], 'Done') || !uploadedIn(r)) continue;
       if (eq(r.values[C.fileType], 'Manual File')) manual++;
       if (eq(r.values[C.fileType], 'Daraz File')) bulk++;
       skus += num(r.values[C.uploadedSku]);
     }
     let retailN = 0;
-    if (day && retail) {
+    // Retail Picks: dated by its own "Upload Date" (column N), daily and monthly.
+    if (retail) {
       for (const row of retail.rows) {
-        if (!same(retail.get(row, 'Uploaded By'), s.name) || !eq(retail.get(row, 'Upload Status'), 'Done')) continue;
+        if (retailWho(row) !== s.name || !eq(retail.get(row, 'Upload Status'), 'Done')) continue;
         if (!inP(parseDate(retail.get(row, 'Upload Date')), period)) continue;
         retailN++;
         // The sheet adds retail "Manual File" uploads to Manual (Sellers).
@@ -334,7 +354,7 @@ export function buildCatalogueReport(args: {
     }
   } else {
     for (const r of recs) {
-      if (eq(r.values[C.status], 'Done') && inP(r.dates[C.uploadDate], period)) {
+      if (eq(r.values[C.status], 'Done') && uploadedIn(r)) {
         uploadedSellers++;
         uploadedSkus += num(r.values[C.uploadedSku]);
       }
