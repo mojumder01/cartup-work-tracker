@@ -42,7 +42,7 @@ export function ConnectionsCard() {
 
   useEffect(() => {
     if (!url) return;
-    fetch(`${url}${url.includes('?') ? '&' : '?'}action=ping`)
+    fetch(`${url}${url.includes('?') ? '&' : '?'}action=ping&t=${Date.now()}`)
       .then((r) => {
         if (!r.ok) {
           throw new Error(
@@ -51,9 +51,9 @@ export function ConnectionsCard() {
               : `HTTP ${r.status} from the Web app. Check Deploy → Manage deployments: Execute as Me, Who has access Anyone.`,
           );
         }
-        return readAppsScriptJson<{ ok?: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; commercial?: boolean; commercialError?: string; account?: string; version?: string }>(r);
+        return readAppsScriptJson<{ ok?: boolean; sync?: boolean; sheet?: boolean; sheetError?: string; work?: boolean; workError?: string; commercial?: boolean; commercialError?: string; teams?: boolean; teamsError?: string | null; account?: string; version?: string }>(r);
       })
-      .then((j) => setPing({ ok: !!j.ok, sync: !!j.sync, sheet: j.sheet, sheetError: j.sheetError ?? undefined, work: j.work, workError: j.workError ?? undefined, commercial: j.commercial, commercialError: j.commercialError ?? undefined, account: j.account ?? undefined, version: j.version ?? '' }))
+      .then((j) => setPing({ ok: !!j.ok, sync: !!j.sync, sheet: j.sheet, sheetError: j.sheetError ?? undefined, work: j.work, workError: j.workError ?? undefined, commercial: j.commercial, commercialError: j.commercialError ?? undefined, teams: j.teams, teamsError: j.teamsError ?? null, account: j.account ?? undefined, version: j.version ?? '' }))
       .catch((e) => setPing({ ok: false, error: (e as Error).message || 'Not reachable — check the deployment access is “Anyone”.' }));
   }, [url]);
 
