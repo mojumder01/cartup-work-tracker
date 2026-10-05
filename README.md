@@ -218,7 +218,7 @@ On the Job desk's **Search** tab, an employee picks their name and sees:
 - **Images in hand:** not yet delivered;
 - **QC in hand:** not yet QC'd.
 
-Click a job to open it in **Update my task**.
+Each job row shows JOB ID, Shop, **Note** (column L), SKU, age, a **Google drive link** (column F; "Open ↗" opens it in a new tab) and Status. A **Requested from / to** calendar filters the counts and the list by the day the job was requested. Click a job to open it in **Update my task**.
 
 ### Task board filters
 

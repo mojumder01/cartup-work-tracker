@@ -9,7 +9,7 @@ type Cell = string | number | null;
 type Row = Record<string, Cell>;
 type Part = 'Pending' | 'Running' | 'Image' | 'QC';
 
-const COLS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'Number of SKU', 'Status', 'Uploaded by', 'Visual editor', 'Image Status', 'QC By', 'QC Status'];
+const COLS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'Number of SKU', 'Google drive link', 'Note', 'Status', 'Uploaded by', 'Visual editor', 'Image Status', 'QC By', 'QC Status'];
 const t = (v: Cell | undefined) => (v === null || v === undefined ? '' : String(v).trim());
 const same = (a: Cell | undefined, b: string) => t(a).toLowerCase() === b.trim().toLowerCase();
 const ageDays = (v: Cell | undefined) => {
@@ -23,6 +23,9 @@ export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[];
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [part, setPart] = useState<Part>('Pending');
+  // Calendar filter on the day the job was requested (Timestamp).
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
 
   useEffect(() => {
     if (!name || !urls.length) return setRows(null);
@@ -53,14 +56,18 @@ export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[];
   }, [name, urls.join()]);
 
   const groups = useMemo(() => {
-    const up = rows?.upload ?? [];
+    const inDates = (r: Row) => {
+      const d = t(r.Timestamp).slice(0, 10);
+      return (!from || (d && d >= from)) && (!to || (d && d <= to));
+    };
+    const up = (rows?.upload ?? []).filter(inDates);
     return {
       Pending: up.filter((r) => t(r.Status) === 'Pending' || t(r.Status) === ''),
       Running: up.filter((r) => t(r.Status) === 'Running'),
-      Image: rows?.image ?? [],
-      QC: rows?.qc ?? [],
+      Image: (rows?.image ?? []).filter(inDates),
+      QC: (rows?.qc ?? []).filter(inDates),
     } as Record<Part, Row[]>;
-  }, [rows]);
+  }, [rows, from, to]);
   const list = [...groups[part]].sort((a, b) => (ageDays(b.Timestamp) ?? 0) - (ageDays(a.Timestamp) ?? 0));
 
   return (
@@ -84,6 +91,21 @@ export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[];
       {err && <div className="tf-msg bad">{err}</div>}
       {name && (
         <>
+          <div className="mt-dates">
+            <label className="field">
+              <span>Requested from</span>
+              <input type="date" className="input" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
+            </label>
+            <label className="field">
+              <span>to</span>
+              <input type="date" className="input" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
+            </label>
+            {(from || to) && (
+              <button type="button" className="btn btn-sm" onClick={() => (setFrom(''), setTo(''))}>
+                All dates
+              </button>
+            )}
+          </div>
           <div className="mt-stats">
             {(['Pending', 'Running', 'Image', 'QC'] as Part[]).map((k) => (
               <button key={k} type="button" className={`mt-stat ${part === k ? 'on' : ''} mt-${k.toLowerCase()}`} onClick={() => setPart(k)}>
@@ -92,18 +114,52 @@ export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[];
               </button>
             ))}
           </div>
-          {rows && list.length === 0 && <div className="tf-hint">Nothing here for {name}.</div>}
+          {rows && list.length === 0 && <div className="tf-hint">Nothing here for {name}{from || to ? ' in these dates' : ''}.</div>}
           {list.length > 0 && (
             <div className="mt-list">
-              {list.slice(0, 100).map((r) => (
-                <button key={t(r['JOB ID'])} type="button" className="mt-row" onClick={() => onOpen(t(r['JOB ID']))} title="Open in “Update my task”">
-                  <b>{t(r['JOB ID'])}</b>
-                  <span className="mt-shop">{t(r['Shop Name']) || '—'}</span>
-                  <span className="muted">{t(r['Number of SKU']) ? `${t(r['Number of SKU'])} SKU` : ''}</span>
-                  <span className="muted">{ageDays(r.Timestamp) !== null ? `${ageDays(r.Timestamp)}d` : ''}</span>
-                  <span className="mt-st">{part === 'Image' ? t(r['Image Status']) || 'Not delivered' : part === 'QC' ? t(r['QC Status']) || 'QC pending' : t(r.Status) || 'Pending'}</span>
-                </button>
-              ))}
+              <div className="mt-row mt-head" aria-hidden="true">
+                <span>JOB ID</span>
+                <span>Shop</span>
+                <span>Note</span>
+                <span>SKU</span>
+                <span>Age</span>
+                <span>Drive</span>
+                <span>Status</span>
+              </div>
+              {list.slice(0, 100).map((r) => {
+                const id = t(r['JOB ID']);
+                const link = t(r['Google drive link']);
+                const href = /^https?:\/\//i.test(link) ? link : '';
+                return (
+                  <div
+                    key={id}
+                    role="button"
+                    tabIndex={0}
+                    className="mt-row"
+                    onClick={() => onOpen(id)}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen(id))}
+                    title="Open in “Update my task”"
+                  >
+                    <b>{id}</b>
+                    <span className="mt-shop">{t(r['Shop Name']) || '—'}</span>
+                    <span className="mt-note" title={t(r.Note)}>
+                      {t(r.Note) || '—'}
+                    </span>
+                    <span className="muted">{t(r['Number of SKU']) || '—'}</span>
+                    <span className="muted">{ageDays(r.Timestamp) !== null ? `${ageDays(r.Timestamp)}d` : ''}</span>
+                    <span>
+                      {href ? (
+                        <a href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title={href}>
+                          Open ↗
+                        </a>
+                      ) : (
+                        <span className="muted">{link || '—'}</span>
+                      )}
+                    </span>
+                    <span className="mt-st">{part === 'Image' ? t(r['Image Status']) || 'Not delivered' : part === 'QC' ? t(r['QC Status']) || 'QC pending' : t(r.Status) || 'Pending'}</span>
+                  </div>
+                );
+              })}
               {list.length > 100 && <div className="tf-hint">Showing the oldest 100 of {list.length}.</div>}
             </div>
           )}
