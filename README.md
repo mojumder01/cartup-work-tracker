@@ -371,6 +371,14 @@ The **Product Governance** report is under **Reports → Product Governance** (s
 **Click any text on a slide to edit it.** That includes titles, notes, highlight lines and every table cell. Edits are saved in your browser per month; clear a text to get the automatic one back. You can also hide or reorder slides, and add **text slides** (with 0–3 cards and a COMPLETE / IN PROGRESS badge) for work that is not in the sheets. Download **PowerPoint**, where every text box, table and the chart stay editable, or **PDF / Print** (one 16:9 page per slide).
 
 
+**Dashboard and Upload page (2.14.0):**
+- **Same rows everywhere:** Upload Performance, QC Performance and Visual Performance count the same finished work as the per-person lists. Under a Month filter, the Upload Performance card, "Uploads by person", File Type and Seller Status on the Upload page all agree.
+- **Upload Month for uploads:** the Month / Year filters use the "Upload Month" column (AN) for uploads, like the monthly reports.
+- **New card, "Regular vs Retail Picks uploads":**
+  - Regular uploads come from the Work Sheet: finished, by Upload Month.
+  - Retail Picks come from the picks sheet, by Upload Date (column N), with SKUs from column F.
+  - It shows sellers, SKUs, share and total. Picks follow the date, month, year and employee filters.
+
 **Which dates decide the month (2.13.0):**
 - **Work Sheet uploads:** the **"Upload Month"** column (AN). If Upload Month is blank, the Upload date is used.
   - This applies to the Monthly Report, Daily / Monthly Performance in Monthly mode, and the Individual Summary for month periods.

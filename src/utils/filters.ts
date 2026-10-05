@@ -108,6 +108,8 @@ export interface ApplyOptions {
    * (per-person numbers use the date the work was finished, e.g. "Upload date").
    */
   dateColumn?: string;
+  /** With dateColumn: a month column that decides the Month / Year filters when filled (e.g. "Upload Month"). */
+  monthColumn?: string;
 }
 
 export function applyFilters(records: WorkRecord[], f: Filters, opts: ApplyOptions = {}): WorkRecord[] {
@@ -126,7 +128,8 @@ export function applyFilters(records: WorkRecord[], f: Filters, opts: ApplyOptio
     }
     if (month || year) {
       const own = opts.dateColumn ? r.dates[opts.dateColumn] : undefined;
-      const key = opts.dateColumn ? (own != null ? monthKeyOf(own) : null) : recordMonth(r);
+      const fromCol = opts.monthColumn ? toMonthKey(r.values[opts.monthColumn]) : null;
+      const key = opts.dateColumn ? fromCol ?? (own != null ? monthKeyOf(own) : null) : recordMonth(r);
       if (month && key !== month) return false;
       if (year && !(key ?? '').startsWith(year)) return false;
     }

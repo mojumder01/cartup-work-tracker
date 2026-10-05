@@ -3,7 +3,9 @@
  * Admin Portal Pending QC). Columns are found by header name; when a needed column
  * is missing the metric is simply not shown (nothing is guessed).
  */
-import type { CellValue, ExtraTable } from '../types';
+import type { CellValue, ExtraTable, FlatTable } from '../types';
+
+type AnyTable = FlatTable & { fields?: Record<string, string> };
 import { parseDate, text, toNumber } from './parse';
 import type { Period } from './periods';
 
@@ -26,7 +28,7 @@ export const PENDING_QC_FIELDS = {
 
 export type Mapping<K extends string> = Record<K, string | null>;
 
-export function detect<K extends string>(t: ExtraTable | null | undefined, fields: Record<K, Field>): Mapping<K> {
+export function detect<K extends string>(t: AnyTable | null | undefined, fields: Record<K, Field>): Mapping<K> {
   const lower = (t?.columns ?? []).map((c) => c.trim().toLowerCase());
   const out = {} as Mapping<K>;
   (Object.keys(fields) as K[]).forEach((k) => {
@@ -36,12 +38,12 @@ export function detect<K extends string>(t: ExtraTable | null | undefined, field
       return;
     }
     const i = fields[k].names.map((n) => lower.indexOf(n.toLowerCase())).find((x) => x >= 0);
-    out[k] = i === undefined ? null : (t as ExtraTable).columns[i];
+    out[k] = i === undefined ? null : (t as AnyTable).columns[i];
   });
   return out;
 }
 
-const objects = (t: ExtraTable) => t.rows.map((r) => Object.fromEntries(t.columns.map((c, i) => [c, r[i] ?? null])) as Record<string, CellValue>);
+const objects = (t: AnyTable) => t.rows.map((r) => Object.fromEntries(t.columns.map((c, i) => [c, r[i] ?? null])) as Record<string, CellValue>);
 const DONE = /^(done|uploaded|complete|completed|live)$/i;
 
 /** Retail Picks uploads per person in a period: rows (sellers) and Σ uploaded SKUs. Null when the sheet or columns are missing. */
@@ -75,4 +77,20 @@ export function pendingQcNow(t: ExtraTable | null | undefined): { rows: number; 
     sellers: m.seller ? new Set(rows.map((r) => text(r[m.seller as string])).filter(Boolean)).size : null,
     skus: m.skus ? rows.reduce((z, r) => z + (toNumber(r[m.skus as string]) ?? 0), 0) : null,
   };
+}
+
+/** Every finished Retail Picks upload: who, when (Upload Date) and SKUs. Null when the sheet or columns are missing. */
+export function retailUploads(t: AnyTable | null | undefined): { name: string; ms: number; skus: number }[] | null {
+  if (!t) return null;
+  const m = detect(t, RETAIL_FIELDS);
+  if (!m.person || !m.date || !m.skus) return null;
+  const out: { name: string; ms: number; skus: number }[] = [];
+  for (const r of objects(t)) {
+    const ms = parseDate(r[m.date]);
+    const name = text(r[m.person]);
+    if (ms === null || !name) continue;
+    if (m.status && text(r[m.status]) && !DONE.test(text(r[m.status]))) continue;
+    out.push({ name, ms, skus: toNumber(r[m.skus]) ?? 0 });
+  }
+  return out;
 }
