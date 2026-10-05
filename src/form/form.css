@@ -30,13 +30,15 @@
 .tf-check small { display: block; color: var(--ink-3); font-size: 12px; margin-top: 2px; }
 
 /* My tasks */
-.mt-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.mt-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
 .mt-stat { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: inherit; cursor: pointer; font: inherit; text-align: left; }
 .mt-stat b { font-size: 22px; line-height: 1.1; }
 .mt-stat span { font-size: 12px; color: var(--ink-3); }
 .mt-stat.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
 .mt-pending b { color: #b45309; }
 .mt-running b { color: #2563eb; }
+.mt-done b { color: #15803d; }
+.mt-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 .mt-list { display: flex; flex-direction: column; margin-top: 10px; border: 1px solid var(--border); border-radius: 10px; max-height: 360px; overflow: auto; }
 .mt-row { display: grid; grid-template-columns: 96px minmax(130px, 1.2fr) 118px minmax(150px, 1.4fr) 50px 40px 64px 92px; min-width: 820px; gap: 8px; align-items: center; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: inherit; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
 .mt-row:hover { background: var(--surface-2); }
@@ -58,7 +60,7 @@
 .mt-dates .field { flex: 0 1 170px; }
 .mt-st { font-size: 12.5px; color: var(--ink-2, var(--ink)); }
 @media (max-width: 560px) {
-  .mt-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mt-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .mt-row { grid-template-columns: 84px minmax(0, 1fr) 108px; min-width: 0; gap: 6px; padding: 8px 10px; }
   .mt-row > :nth-child(n + 4) { display: none; }
 }

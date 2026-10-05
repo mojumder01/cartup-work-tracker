@@ -4,12 +4,15 @@
  */
 import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import { scriptRead, withAnyUrl } from '../services/scriptApi';
+import { exportXlsx, stamp } from '../utils/export';
 
 type Cell = string | number | null;
 type Row = Record<string, Cell>;
-type Part = 'Pending' | 'Running' | 'Image' | 'QC';
+type Part = 'Pending' | 'Running' | 'Done' | 'Image' | 'QC';
+const PARTS: Part[] = ['Pending', 'Running', 'Done', 'Image', 'QC'];
+const PART_LABEL: Record<Part, string> = { Pending: 'Upload pending', Running: 'Upload running', Done: 'Upload done', Image: 'Images in hand', QC: 'QC in hand' };
 
-const COLS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'Number of SKU', 'Google drive link', 'Note', 'Status', 'Uploaded by', 'Visual editor', 'Image Status', 'QC By', 'QC Status'];
+const COLS = ['JOB ID', 'Timestamp', 'Task Type', 'Shop Name', 'Seller Code', 'Number of SKU', 'Uploaded SKU Count', 'Upload date', 'Google drive link', 'Note', 'Status', 'Uploaded by', 'Visual editor', 'Image Status', 'QC By', 'QC Status'];
 const t = (v: Cell | undefined) => (v === null || v === undefined ? '' : String(v).trim());
 const same = (a: Cell | undefined, b: string) => t(a).toLowerCase() === b.trim().toLowerCase();
 const ageDays = (v: Cell | undefined) => {
@@ -60,7 +63,7 @@ function CopyCell({ text, className, title, children }: { text: string; classNam
 
 export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[]; people: string[]; who: string; onPick: (name: string) => void; onOpen: (jobId: string) => void }) {
   const [name, setName] = useState(() => (people.some((p) => same(p, who)) ? people.find((p) => same(p, who))! : ''));
-  const [rows, setRows] = useState<{ upload: Row[]; image: Row[]; qc: Row[] } | null>(null);
+  const [rows, setRows] = useState<{ upload: Row[]; done: Row[]; doneTotal: number; image: Row[]; qc: Row[] } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [part, setPart] = useState<Part>('Pending');
@@ -78,13 +81,17 @@ export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[];
         scriptRead(u, { sheet: 'work', cols: COLS, q: name, in: ['Uploaded by'], notIn: { col: 'Status', values: ['Done', 'Rejected'] }, limit: 1000 }),
         scriptRead(u, { sheet: 'work', cols: COLS, q: name, in: ['Visual editor'], notIn: { col: 'Image Status', values: ['Delivered', 'Rejected'] }, limit: 1000 }),
         scriptRead(u, { sheet: 'work', cols: COLS, q: name, in: ['QC By'], notIn: { col: 'QC Status', values: ['QC Done', 'QC Rejected'] }, limit: 1000 }),
+        // Upload done: every Status except the open / rejected ones (newest rows first).
+        scriptRead(u, { sheet: 'work', cols: COLS, q: name, in: ['Uploaded by'], notIn: { col: 'Status', values: ['', 'Pending', 'Running', 'Rejected'] }, limit: 3000 }),
       ]),
     )
-      .then(({ value: [a, b, c] }) => {
+      .then(({ value: [a, b, c, d] }) => {
         if (stop) return;
         // The search is "contains"; keep exact name matches only.
         setRows({
           upload: (a.objects as Row[]).filter((r) => same(r['Uploaded by'], name)),
+          done: (d.objects as Row[]).filter((r) => same(r['Uploaded by'], name) && t(r.Status) === 'Done'),
+          doneTotal: d.total,
           image: (b.objects as Row[]).filter((r) => same(r['Visual editor'], name) && t(r.Status) !== 'Rejected'),
           qc: (c.objects as Row[]).filter((r) => same(r['QC By'], name) && t(r.Status) !== 'Rejected'),
         });
@@ -105,11 +112,37 @@ export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[];
     return {
       Pending: up.filter((r) => t(r.Status) === 'Pending' || t(r.Status) === ''),
       Running: up.filter((r) => t(r.Status) === 'Running'),
+      // Done counts on the day it was uploaded (Upload date), falling back to the request day.
+      Done: (rows?.done ?? []).filter((r) => {
+        const d = (t(r['Upload date']) || t(r.Timestamp)).slice(0, 10);
+        return (!from || (d && d >= from)) && (!to || (d && d <= to));
+      }),
       Image: (rows?.image ?? []).filter(inDates),
       QC: (rows?.qc ?? []).filter(inDates),
     } as Record<Part, Row[]>;
   }, [rows, from, to]);
-  const list = [...groups[part]].sort((a, b) => (ageDays(b.Timestamp) ?? 0) - (ageDays(a.Timestamp) ?? 0));
+  const list = [...groups[part]].sort((a, b) =>
+    part === 'Done' ? (t(b['Upload date']) || t(b.Timestamp)).localeCompare(t(a['Upload date']) || t(a.Timestamp)) : (ageDays(b.Timestamp) ?? 0) - (ageDays(a.Timestamp) ?? 0),
+  );
+  const statusOf = (r: Row) =>
+    part === 'Image' ? t(r['Image Status']) || 'Not delivered' : part === 'QC' ? t(r['QC Status']) || 'QC pending' : part === 'Done' ? `Done${t(r['Upload date']) ? ' ' + t(r['Upload date']).slice(0, 10) : ''}` : t(r.Status) || 'Pending';
+  const [exporting, setExporting] = useState(false);
+  const exportList = async () => {
+    setExporting(true);
+    try {
+      const head = ['JOB ID', 'Requested', 'Task Type', 'Shop Name', 'Seller Code', 'Number of SKU', 'Uploaded SKU Count', 'Upload date', 'Note', 'Google drive link', 'Status', 'Image Status', 'QC Status', 'Age (days)'];
+      const rowsOut = list.map((r) => [
+        t(r['JOB ID']), t(r.Timestamp).slice(0, 10), t(r['Task Type']), t(r['Shop Name']), t(r['Seller Code']),
+        typeof r['Number of SKU'] === 'number' ? r['Number of SKU'] : t(r['Number of SKU']),
+        typeof r['Uploaded SKU Count'] === 'number' ? r['Uploaded SKU Count'] : t(r['Uploaded SKU Count']),
+        t(r['Upload date']).slice(0, 10), t(r.Note), t(r['Google drive link']), t(r.Status), t(r['Image Status']), t(r['QC Status']), ageDays(r.Timestamp),
+      ]);
+      const range = from || to ? `-${from || 'start'}-to-${to || 'today'}` : '';
+      await exportXlsx(`my-tasks-${name}-${PART_LABEL[part]}${range}-${stamp()}.xlsx`.replace(/\s+/g, '-'), PART_LABEL[part], head, rowsOut);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="tf-card">
@@ -148,12 +181,22 @@ export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[];
             )}
           </div>
           <div className="mt-stats">
-            {(['Pending', 'Running', 'Image', 'QC'] as Part[]).map((k) => (
+            {PARTS.map((k) => (
               <button key={k} type="button" className={`mt-stat ${part === k ? 'on' : ''} mt-${k.toLowerCase()}`} onClick={() => setPart(k)}>
                 <b>{busy && !rows ? '…' : groups[k].length}</b>
-                <span>{k === 'Pending' ? 'Upload pending' : k === 'Running' ? 'Upload running' : k === 'Image' ? 'Images in hand' : 'QC in hand'}</span>
+                <span>{PART_LABEL[k]}</span>
               </button>
             ))}
+          </div>
+          <div className="mt-tools">
+            <span className="tf-hint">
+              {PART_LABEL[part]}: {list.length}
+              {part === 'Done' ? ' · dates use the Upload date' : ''}
+              {part === 'Done' && rows && rows.doneTotal > rows.done.length ? ` · newest ${rows.done.length} loaded` : ''}
+            </span>
+            <button type="button" className="btn btn-sm" onClick={exportList} disabled={!list.length || exporting}>
+              {exporting ? 'Exporting…' : '⬇ Export Excel'}
+            </button>
           </div>
           {rows && list.length === 0 && <div className="tf-hint">Nothing here for {name}{from || to ? ' in these dates' : ''}.</div>}
           {list.length > 0 && (
@@ -173,7 +216,6 @@ export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[];
                 const link = t(r['Google drive link']);
                 const href = /^https?:\/\//i.test(link) ? link : '';
                 const age = ageDays(r.Timestamp);
-                const status = part === 'Image' ? t(r['Image Status']) || 'Not delivered' : part === 'QC' ? t(r['QC Status']) || 'QC pending' : t(r.Status) || 'Pending';
                 return (
                   <div
                     key={id}
@@ -203,7 +245,7 @@ export function MyTasks({ urls, people, who, onPick, onOpen }: { urls: string[];
                         <span className="muted">{link || '—'}</span>
                       )}
                     </CopyCell>
-                    <CopyCell className="mt-st" text={status} />
+                    <CopyCell className="mt-st" text={statusOf(r)} />
                   </div>
                 );
               })}
