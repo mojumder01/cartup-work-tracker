@@ -17,6 +17,7 @@ client_secret*.json
 
 # Generated at build time by the GitHub Action (live business data — not stored in git)
 public/data/*.json
+public/data/*.enc
 
 # Reference spreadsheets are not the database and must not be committed
 *.xlsx

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BUILD } from '../utils/buildInfo';
 import { readAppsScriptJson } from '../services/appsScriptResponse';
+import { dashToken } from '../services/dashLock';
 
 export type SyncPhase = 'idle' | 'starting' | 'waiting' | 'done' | 'error';
 
@@ -41,7 +42,7 @@ export function useSync(appsScriptUrl: string | null | undefined, updatedAt: str
     setPhase('starting');
     setMessage('Asking Google Sheets sync to start…');
     try {
-      const res = await fetch(appsScriptUrl, { method: 'POST', body: JSON.stringify({ action: 'triggerSync' }), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+      const res = await fetch(appsScriptUrl, { method: 'POST', body: JSON.stringify({ action: 'triggerSync', ...(dashToken() ? { token: dashToken() } : {}) }), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
       const json = await readAppsScriptJson<{ ok: boolean; error?: string; alreadyRunning?: boolean }>(res);
       if (!json.ok) throw new Error(json.error || 'The update could not be started.');
       setPhase('waiting');

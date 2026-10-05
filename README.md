@@ -469,9 +469,28 @@ The Job desk and Task board get the list from the sync, which uses the Team tab 
 - `.gitignore` blocks `.env*`, `credentials/`, `secrets/`, `service_account.json`, `*service-account*.json`, generated data and `*.xlsx`, using specific rules rather than a blanket `*.json`.
 - `data.json` is produced at build time and deployed as part of the site. It is **not committed**, so sheet data never enters git history.
 - **Seller Login ID / Seller Login Password are removed before publishing** (`excludeColumns`).
-- ⚠️ **GitHub Pages sites are publicly reachable** (unless your organisation has GitHub Enterprise Cloud with private Pages). Anyone with the URL can load `data/data.json`. The page carries `noindex`, but that is not access control. Consider also excluding personal contact columns (`Phone Number (KAM)`, `Mail (KAM)`, `Email Address`). If the data must be private, use Enterprise private Pages or put the site behind an access proxy such as Cloudflare Access.
+- ⚠️ **GitHub Pages sites are publicly reachable** (unless your organisation has GitHub Enterprise Cloud with private Pages). Without a dashboard password, anyone with the URL can load `data/data.json`. The page carries `noindex`, but that is not access control. Use the **dashboard password** below. Consider also excluding personal contact columns (`Phone Number (KAM)`, `Mail (KAM)`, `Email Address`). If the data must be private, use Enterprise private Pages or put the site behind an access proxy such as Cloudflare Access.
 - Use a dedicated service account with **Viewer** access to just this sheet, and rotate its key if it is ever exposed.
 - CSV exports neutralise spreadsheet formula injection.
+
+### Dashboard password
+
+This is an encrypted lock, not just a login screen. It covers **the dashboard only**; the Job desk (`form.html`) and Task board (`assign.html`) stay open.
+
+1. GitHub → repository **Settings → Secrets and variables → Actions → New repository secret**. Name it `DASHBOARD_PASSWORD` and set the password (8+ characters) as its value.
+2. Click **Update data**, or run the "Sync Google Sheet & Deploy" workflow.
+
+How it works:
+- During the build, `scripts/encrypt-data.mjs` compresses and encrypts the data (AES-256-GCM, with the key derived from the password by PBKDF2-SHA256, 310,000 rounds). It publishes `data/data.enc` and does **not** publish `data/data.json`; the workflow fails if a plain copy slips into the site.
+- The dashboard shows a password screen and decrypts the data in the browser. A wrong password gives no data at all.
+- "Remember on this device" keeps the derived key (not the password) in the browser. Settings → Dashboard password → **Lock this device** forgets it.
+- **Apps Script access code.** After unlocking, Settings → Dashboard password shows a code. Put it in Apps Script → Project Settings → Script Properties as `DASHBOARD_TOKEN` (needs script 2.2.0+). From then on the Governance tabs (projects / project progress) and the **Update data** button only work from the unlocked dashboard.
+- **Changing the password:** change the secret and run Update data. Everyone is asked for the new password. Unlock and replace `DASHBOARD_TOKEN` with the new code.
+- **Limits:**
+  - `form.json` (people names and the Apps Script link) stays public for the Job desk.
+  - Because the Job desk and Task board are open, the Work Sheet can still be read and updated through the Apps Script by someone who has that link.
+  - For company sign-in on every page, put the site behind Cloudflare Access.
+- Without the secret, nothing changes and the dashboard is open as before.
 
 ---
 

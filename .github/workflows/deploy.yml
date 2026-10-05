@@ -59,8 +59,21 @@ jobs:
       - name: Test data scripts
         run: npm test
 
+      # Optional password: with the secret DASHBOARD_PASSWORD set, data.json is replaced by the
+      # encrypted data.enc and the dashboard asks for the password (Job desk / Task board stay open).
+      - name: Lock dashboard data
+        env:
+          DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
+        run: node scripts/encrypt-data.mjs
+
       - name: Build dashboard
         run: npm run build
+
+      - name: Check no plain data is published when locked
+        env:
+          LOCKED: ${{ secrets.DASHBOARD_PASSWORD != '' }}
+        run: |
+          if [ "$LOCKED" = "true" ] && [ -e dist/data/data.json ]; then echo "::error::dist/data/data.json must not be published while the dashboard is locked"; exit 1; fi
 
       - name: Build info
         run: |
