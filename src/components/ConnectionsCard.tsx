@@ -297,6 +297,11 @@ export function ConnectionsCard() {
           <li>
             Run the workflow once on GitHub (Actions → Run workflow). After that, use <b>Update data</b> at the top of the dashboard.
           </li>
+          <li>
+            Optional — <b>Teams message on assign</b>: in Microsoft Teams open the channel → <b>•••</b> → <b>Workflows</b> → <b>Post to a channel when a webhook request is received</b> → pick the team and
+            channel → copy the URL. In Apps Script → Project Settings → <b>Script Properties</b> add <code>TEAMS_WEBHOOK</code> = that URL → Save, then refresh this page. For real @mentions also add{' '}
+            <code>TEAMS_PEOPLE</code> = <code>{'{"Name":"teams-email", …}'}</code>. No new deployment is needed for Script Properties.
+          </li>
         </ol>
         <details style={{ marginTop: 14 }}>
           <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Never update the script by hand again (automatic deploy from GitHub)</summary>
