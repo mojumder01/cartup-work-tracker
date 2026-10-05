@@ -11,6 +11,7 @@ import { Card, ErrorState, Segmented } from '../ui';
 import { Icon } from '../Icon';
 import { printSlide, useFitScale } from './ReportBuilder';
 import './report.css';
+import { useBulkDownloads } from './bulk';
 
 interface Settings {
   periodType: PeriodType;
@@ -32,6 +33,7 @@ type BlockEdits = Record<string, { title?: string; note?: string; newTag?: boole
 const pctText = (a: number, b: number) => (a ? ` (${b >= a ? '+' : ''}${(((b - a) / a) * 100).toFixed(1)}%)` : '');
 
 export function GovernanceReport() {
+  const bulk = useBulkDownloads('governance');
   const { gov, adhoc, projects, logs } = useGovernance();
   const [st, setSt] = useLocalStorage<Settings>('cartup.govReportSettings', DEFAULTS);
   const s = { ...DEFAULTS, ...st, pick: st.pick ?? {} };
@@ -177,6 +179,11 @@ export function GovernanceReport() {
       setPptBusy(false);
     }
   };
+
+  bulk.current = [
+    { label: 'Product Governance (PowerPoint)', run: downloadPptx },
+    { label: 'Product Governance (Excel)', run: downloadExcel },
+  ];
 
   const editBlock = editing ? blocks.find((b) => b.id === editing) : null;
   const auto = editing ? [...model.projBlocks, model.byType, model.byPerson].find((b) => b.id === editing) : null;

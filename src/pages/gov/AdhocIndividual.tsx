@@ -10,8 +10,13 @@ import { exportXlsxSheets, stamp, type ExportRow } from '../../utils/export';
 import { Block } from '../../components/report/ReportBlock';
 import { Card, Segmented } from '../../components/ui';
 import { Icon } from '../../components/Icon';
+import { useBulkDownloads } from '../../components/report/bulk';
+import { useGovernance } from '../../hooks/useGovernance';
+import { useApp } from '../../hooks/AppContext';
+import { leftChecker } from '../../utils/roster';
 
-export function AdhocIndividual({ tasks, people }: { tasks: AdhocTask[]; people: string[] }) {
+export function AdhocIndividual({ tasks, people, title = 'Individual report' }: { tasks: AdhocTask[]; people: string[]; title?: string }) {
+  const bulk = useBulkDownloads('adhoc');
   const [type, setType] = useState<PeriodType>('week');
   const [pick, setPick] = useState('');
   const [person, setPerson] = useState('');
@@ -36,22 +41,24 @@ export function AdhocIndividual({ tasks, people }: { tasks: AdhocTask[]; people:
     return names.map((n) => adhocPersonBlock(n, a, b, prev, cur));
   }, [tasks, people, person, cur, prev]);
 
-  const download = () => {
-    if (!cur || !prev) return;
+  const download = async () => {
+    if (!cur || !prev || !blocks.length) return;
     const sheet = (title: string, bs: typeof blocks): { name: string; rows: ExportRow[] } => ({
       name: title,
       rows: bs.flatMap((b) => [[b.title], b.head, ...b.rows, ...(b.total ? [b.total] : []), []] as ExportRow[]),
     });
-    void exportXlsxSheets(`adhoc-individual-${cur.short}-vs-${prev.short}-${stamp()}.xlsx`.replace(/\s+/g, '-'), [
+    await exportXlsxSheets(`adhoc-individual-${cur.short}-vs-${prev.short}-${stamp()}.xlsx`.replace(/\s+/g, '-'), [
       { name: 'Info', rows: [['Ad-Hoc Task individual report'], ['Current', `${cur.label} (${cur.range})`], ['Previous', `${prev.label} (${prev.range})`], ['Measure', 'Product Count (SKUs) per Task Type'], ['People', blocks.length]] },
       sheet('All people', blocks),
       ...(blocks.length > 1 ? blocks.map((b) => sheet(b.title.replace('Ad-Hoc Task · ', ''), [b])) : []),
     ]);
   };
 
+  bulk.current = [{ label: 'Ad-Hoc Individual (Excel)', run: download }];
+
   return (
     <Card
-      title="Individual report"
+      title={title}
       subtitle={cur && prev ? `Ad-Hoc SKUs (Product Count) per task type · ${cur.label} (${cur.range}) vs ${prev.label}` : 'No dated entries yet'}
       actions={
         <button type="button" className="btn btn-sm" onClick={download} disabled={!blocks.length}>
@@ -74,7 +81,7 @@ export function AdhocIndividual({ tasks, people }: { tasks: AdhocTask[]; people:
         />
         <label className="field">
           <span>{type === 'week' ? 'Week' : 'Month'}</span>
-          <select className="select" style={{ minWidth: 240 }} value={cur ? periodKey(cur) : ''} onChange={(e) => setPick(e.target.value)}>
+          <select className="select" style={{ minWidth: 290 }} value={cur ? periodKey(cur) : ''} onChange={(e) => setPick(e.target.value)}>
             {periods.map((p) => (
               <option key={periodKey(p)} value={periodKey(p)}>
                 {p.label} · {p.range}
@@ -103,4 +110,22 @@ export function AdhocIndividual({ tasks, people }: { tasks: AdhocTask[]; people:
       )}
     </Card>
   );
+}
+
+/** Reports page tab: the same report for the whole team (Governance "Main" tab). */
+export function AdhocReport() {
+  const { adhoc } = useGovernance();
+  const { roster } = useApp();
+  const people = useMemo(() => {
+    const isLeft = leftChecker(roster);
+    return [...new Set((adhoc?.tasks ?? []).map((t) => t.person).filter(Boolean))].filter((p) => !isLeft(p)).sort((a, b) => a.localeCompare(b));
+  }, [adhoc, roster]);
+  if (!adhoc) {
+    return (
+      <Card title="Ad-Hoc Individual Report">
+        <p className="muted">The Governance “Main” tab (Ad-Hoc Tasks) has not been synced yet.</p>
+      </Card>
+    );
+  }
+  return <AdhocIndividual tasks={adhoc.tasks} people={people} title="Ad-Hoc Individual Report" />;
 }

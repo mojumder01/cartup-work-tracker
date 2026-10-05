@@ -18,6 +18,7 @@ import { Card } from '../ui';
 import { Icon } from '../Icon';
 import { useFitScale } from './ReportBuilder';
 import './report.css';
+import { useBulkDownloads } from './bulk';
 
 interface MonthState {
   edits: Record<string, string>;
@@ -326,6 +327,7 @@ function printDeck(el: HTMLElement, title: string) {
 /* ------------------------------------------------------------------ */
 
 export function MonthlyReport() {
+  const bulk = useBulkDownloads('monthly');
   const { dataset, data, roster } = useApp();
   const gov = useGovernance();
   const [store, setStore] = useLocalStorage<Record<string, MonthState>>('cartup.monthlyReport', {});
@@ -429,6 +431,8 @@ export function MonthlyReport() {
       setBusy(false);
     }
   };
+
+  bulk.current = [{ label: 'Monthly Report (PowerPoint)', run: downloadPptx }];
 
   const label = (s: MSlide) => s.title.replace(/\s+/g, ' ');
 
